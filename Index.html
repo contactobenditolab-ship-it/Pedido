@@ -672,7 +672,26 @@ async function syncSheets(){
   if(!url)return;
   document.getElementById('sync-dot').className='sync-dot spin';
   try{
-    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync',data:state})});
+    // Aplanar state en el formato que espera el script v12
+    const pedidos = (state.pedidos||[]).map(p=>({
+      id:p.id, pedidoId:p.id, tipo:p.tipo||'', cliente:p.cliente||'',
+      articulo:p.articulo||'', estado:p.estado||'pendiente', notas:p.notas||''
+    }));
+    const materiales = (state.pedidos||[]).flatMap(p=>
+      (p.materiales||[]).map(m=>({id:m.nombre+p.id, pedidoId:p.id, nombre:m.nombre||'', proveedor:m.proveedor||'', qty:String(m.qty||1)}))
+    );
+    const checklist = (state.pedidos||[]).flatMap(p=>
+      (p.checklist||[]).map(c=>({id:c.tarea+p.id, pedidoId:p.id, tarea:c.tarea||'', cat:c.cat||'', done:c.done?'1':'0'}))
+    );
+    const maleta = (state.pedidos||[]).flatMap(p=>
+      (p.maleta||[]).map(m=>({id:m.item+p.id, pedidoId:p.id, item:m.item||'', qty:String(m.qty||1), checked:m.checked?'1':'0'}))
+    );
+    await fetch(url,{
+      method:'POST',
+      mode:'no-cors',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({accion:'guardarProduccion', datos:{pedidos,materiales,checklist,maleta}})
+    });
     document.getElementById('sync-dot').className='sync-dot ok';
     setTimeout(()=>document.getElementById('sync-dot').className='sync-dot',3000);
   }catch(e){document.getElementById('sync-dot').className='sync-dot err';}
