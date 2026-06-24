@@ -369,6 +369,18 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
   <div class="modal">
     <div class="modal-title">Nuevo pedido</div>
     <div class="mfield">
+      <label>Vincular a presupuesto existente</label>
+      <select id="m-presup" onchange="selPresup(this.value)" style="background:var(--blue-bg);border:1px solid var(--blue);border-radius:7px;padding:10px 12px;font-size:.86rem;font-family:var(--font);color:var(--navy);width:100%;outline:none;">
+        <option value="">— Seleccionar presupuesto —</option>
+      </select>
+      <div id="m-presup-loading" style="font-size:.72rem;color:var(--gray);margin-top:4px;display:none">Cargando presupuestos…</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin:4px 0 12px">
+      <div style="flex:1;height:1px;background:var(--gray-light)"></div>
+      <span style="font-size:.7rem;color:var(--gray);text-transform:uppercase;letter-spacing:.06em">o manual</span>
+      <div style="flex:1;height:1px;background:var(--gray-light)"></div>
+    </div>
+    <div class="mfield">
       <label>Tipo</label>
       <div class="tgrid">
         <div class="topt t-b2b sel" data-t="b2b" onclick="selType('b2b')">🏢<br>B2B</div>
@@ -501,13 +513,56 @@ function render(){
 function fmtF(f){if(!f)return'';const[y,m,d]=f.split('-');return`${d}/${m}/${y}`;}
 
 // NEW PEDIDO
+// Cache de presupuestos cargados
+let _presups=[];
+
+async function loadPresupuestos(){
+  const sel=document.getElementById('m-presup');
+  const lbl=document.getElementById('m-presup-loading');
+  if(_presups.length){_renderPresupSel(sel);return;}
+  lbl.style.display='block';
+  try{
+    const r=await fetch(SHEETS_URL+'?tabla=presupuestos');
+    const data=await r.json();
+    if(data.ok&&Array.isArray(data.data)){
+      _presups=data.data.filter(p=>p.estado!=='cancelado'&&p.estado!=='rechazado');
+      _presups.sort((a,b)=>(a.fecha||'') < (b.fecha||'') ? 1 : -1);
+      _renderPresupSel(sel);
+    }
+  }catch(e){console.warn('No se pudieron cargar presupuestos',e);}
+  finally{lbl.style.display='none';}
+}
+
+function _renderPresupSel(sel){
+  sel.innerHTML='<option value="">— Seleccionar presupuesto —</option>';
+  _presups.forEach((p,i)=>{
+    const label=[p.numPresup,p.cliente,p.tipo,p.fecha].filter(Boolean).join(' · ');
+    const opt=document.createElement('option');
+    opt.value=i;
+    opt.textContent=label;
+    sel.appendChild(opt);
+  });
+}
+
+function selPresup(idx){
+  if(idx==='')return;
+  const p=_presups[parseInt(idx)];
+  if(!p)return;
+  document.getElementById('m-cliente').value=p.cliente||p.empresa||'';
+  document.getElementById('m-art').value=p.tipo||p.pack||'';
+  document.getElementById('m-fecha').value=p.fecha||'';
+  const tipo=p.tipocliente==='evento'?'evento':p.tipocliente==='b2c'?'b2c':p.tipocliente==='interno'?'interno':'b2b';
+  selType(tipo);
+}
+
 function openNewModal(){
+  document.getElementById('m-presup').value='';
   document.getElementById('m-cliente').value='';
   document.getElementById('m-art').value='';
   document.getElementById('m-fecha').value='';
   selType('b2b');
   document.getElementById('modal-bd').classList.add('open');
-  setTimeout(()=>document.getElementById('m-cliente').focus(),150);
+  loadPresupuestos();
 }
 function closeModal(){document.getElementById('modal-bd').classList.remove('open');}
 function selType(t){
