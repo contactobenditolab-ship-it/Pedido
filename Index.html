@@ -1,651 +1,691 @@
-import { useState, useEffect, useCallback } from "react";
-
-const NOTION_MCP = "https://mcp.notion.com/mcp";
-const DB_ID = "3593c5bf-9b02-8023-a7c6-000ba9d1a041";
-
-const TECNICAS = ["Láser", "DTF Textil", "DTF UV", "Sublimación", "Bordado", "Vinilo HTV", "Vinilo Adhesivo"];
-const TIPOS_PRODUCTO = ["Textil", "Rígido", "Papel", "Otro"];
-const TALLAS = ["XS", "S", "M", "L", "XL", "XXL", "Única"];
-const ESTADOS = ["Sin empezar", "En progreso", "Listo", "Cancelado"];
-const TIPOS_PEDIDO = ["B2B", "B2C", "Evento"];
-
-const CHECKLIST_ITEMS = [
-  "Listado completo recibido (nombres + tallas + colores)",
-  "Archivo de diseño preparado",
-  "Prueba / muestra aprobada por el cliente",
-  "Producción iniciada",
-  "Control de calidad",
-  "Embalaje",
-  "Entrega / envío confirmado",
-];
-
-const COLORS = {
-  bg: "#0f0e0d",
-  surface: "#1a1917",
-  card: "#232220",
-  border: "#2e2c29",
-  accent: "#e8c547",
-  accentDim: "#b89a2e",
-  text: "#f0ede8",
-  textMuted: "#8a8580",
-  textDim: "#5a5855",
-  green: "#4caf82",
-  red: "#e05252",
-  blue: "#5b9cf6",
-  orange: "#e8834a",
-};
-
-const STATUS_COLORS = {
-  "Sin empezar": COLORS.textMuted,
-  "En progreso": COLORS.blue,
-  Listo: COLORS.green,
-  Cancelado: COLORS.red,
-};
-
-function callNotion(prompt) {
-  return fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 1000,
-      system: `Eres un asistente que gestiona pedidos en Notion para Bendito Lab.
-Tienes acceso al MCP de Notion. La base de datos de PEDIDOS tiene data_source_id: ${DB_ID}.
-Responde SIEMPRE en JSON con esta estructura exacta (sin markdown, sin texto extra):
-{"success": true/false, "data": {...}, "message": "..."}`,
-      messages: [{ role: "user", content: prompt }],
-      mcp_servers: [{ type: "url", url: NOTION_MCP, name: "notion" }],
-    }),
-  })
-    .then((r) => r.json())
-    .then((data) => {
-      const text = data.content
-        ?.filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("");
-      const clean = text?.replace(/```json|```/g, "").trim();
-      try {
-        return JSON.parse(clean);
-      } catch {
-        return { success: true, message: text, data: {} };
-      }
-    });
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Producción · Bendito Lab</title>
+<style>
+:root {
+  --navy: #0D1B3E;
+  --navy-mid: #1a2d5a;
+  --navy-soft: #243a72;
+  --pink: #F2BFBE;
+  --pink-dark: #d9908f;
+  --cream: #FAF7F4;
+  --white: #ffffff;
+  --gray: #8a96a8;
+  --gray-light: #e8ecf1;
+  --green: #2d7a4f;
+  --green-bg: #e8f5ee;
+  --amber: #c47c1a;
+  --amber-bg: #fef3e2;
+  --blue: #1a5fa8;
+  --blue-bg: #e8f0fa;
+  --red: #a8302a;
+  --red-bg: #fdecea;
+  --purple: #6b3fa0;
+  --purple-bg: #f0eafa;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Georgia', serif;
+  --r: 10px;
+  --shadow: 0 2px 12px rgba(13,27,62,0.09);
 }
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--font);background:var(--cream);color:var(--navy);min-height:100vh;}
 
-// ── UI Primitives ──────────────────────────────────────────────────────────
+/* PIN */
+#pin-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;background:var(--navy);}
+.pin-logo{font-family:var(--font-display);font-size:1.5rem;color:var(--pink);letter-spacing:.08em;margin-bottom:4px;}
+.pin-sub{font-size:.72rem;color:var(--gray);letter-spacing:.14em;text-transform:uppercase;margin-bottom:44px;}
+.pin-dots{display:flex;gap:14px;margin-bottom:36px;}
+.pin-dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--navy-soft);transition:all .15s;}
+.pin-dot.filled{background:var(--pink);border-color:var(--pink);}
+.pin-keypad{display:grid;grid-template-columns:repeat(3,72px);gap:12px;}
+.pin-key{height:72px;border:none;border-radius:var(--r);background:var(--navy-mid);color:var(--white);font-size:1.4rem;cursor:pointer;transition:background .12s,transform .08s;-webkit-tap-highlight-color:transparent;}
+.pin-key:active{background:var(--navy-soft);transform:scale(.95);}
+.pin-key.del{font-size:1rem;color:var(--gray);}
+.pin-err{color:var(--pink-dark);font-size:.82rem;margin-top:20px;opacity:0;transition:opacity .2s;}
+.pin-err.show{opacity:1;}
 
-function Badge({ label, color }) {
-  return (
-    <span style={{
-      background: color + "22",
-      color,
-      border: `1px solid ${color}44`,
-      borderRadius: 4,
-      padding: "2px 8px",
-      fontSize: 11,
-      fontWeight: 600,
-      letterSpacing: "0.05em",
-      textTransform: "uppercase",
-    }}>{label}</span>
-  );
+/* APP SHELL */
+#app{display:none;flex-direction:column;min-height:100vh;}
+.hdr{background:var(--navy);padding:16px 16px 0;position:sticky;top:0;z-index:100;}
+.hdr-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.hdr-logo{font-family:var(--font-display);font-size:1.05rem;color:var(--pink);letter-spacing:.06em;}
+.hdr-actions{display:flex;gap:8px;align-items:center;}
+.sync-dot{width:7px;height:7px;border-radius:50%;background:var(--gray);}
+.sync-dot.ok{background:var(--green);}
+.sync-dot.err{background:var(--red);}
+.sync-dot.spin{background:var(--amber);animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
+.btn-icon-sm{background:none;border:none;color:var(--gray);font-size:.9rem;cursor:pointer;padding:4px;}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:12px;}
+.filter-bar::-webkit-scrollbar{display:none;}
+.filter-chip{flex:none;padding:6px 14px;border-radius:20px;font-size:.74rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;border:none;transition:all .15s;-webkit-tap-highlight-color:transparent;}
+.fc-all{background:rgba(255,255,255,.12);color:var(--white);}
+.fc-all.active{background:var(--white);color:var(--navy);}
+.fc-b2b{background:rgba(26,95,168,.25);color:#a8c8f5;}
+.fc-b2b.active{background:var(--blue);color:var(--white);}
+.fc-evento{background:rgba(242,191,190,.2);color:var(--pink);}
+.fc-evento.active{background:var(--pink);color:var(--navy);}
+.fc-b2c{background:rgba(43,122,79,.2);color:#7dcfa4;}
+.fc-b2c.active{background:var(--green);color:var(--white);}
+.fc-interno{background:rgba(107,63,160,.2);color:#c4a8e8;}
+.fc-interno.active{background:var(--purple);color:var(--white);}
+
+/* MAIN */
+.app-main{flex:1;padding:16px 16px 100px;max-width:600px;margin:0 auto;width:100%;}
+.list-meta{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.list-count{font-size:.78rem;color:var(--gray);}
+.sort-sel{background:none;border:none;font-size:.78rem;color:var(--gray);cursor:pointer;font-family:var(--font);}
+
+/* PEDIDO CARD */
+.ped-card{background:var(--white);border-radius:var(--r);margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden;cursor:pointer;transition:box-shadow .15s;-webkit-tap-highlight-color:transparent;}
+.ped-card:active{box-shadow:0 1px 4px rgba(13,27,62,.08);}
+.ped-card-top{display:flex;align-items:center;gap:10px;padding:14px 14px 12px;}
+.type-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.ped-body{flex:1;min-width:0;}
+.ped-title{font-size:.92rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ped-meta{font-size:.74rem;color:var(--gray);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ped-right{display:flex;flex-direction:column;align-items:flex-end;gap:5px;flex-shrink:0;}
+.badge{font-size:.65rem;padding:2px 8px;border-radius:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;}
+.bp{background:var(--amber-bg);color:var(--amber);}
+.bpr{background:var(--blue-bg);color:var(--blue);}
+.bl{background:var(--green-bg);color:var(--green);}
+.be{background:var(--purple-bg);color:var(--purple);}
+.bc{background:var(--red-bg);color:var(--red);}
+.ped-fecha{font-size:.7rem;color:var(--gray);}
+.ped-fecha.urgent{color:var(--red);font-weight:700;}
+.ped-progress{height:3px;background:var(--gray-light);}
+.ped-progress-fill{height:100%;background:var(--green);transition:width .3s;}
+
+/* EMPTY */
+.empty{text-align:center;padding:56px 16px;color:var(--gray);}
+.empty .ei{font-size:2.5rem;margin-bottom:12px;}
+.empty p{font-size:.86rem;line-height:1.5;}
+
+/* FAB */
+.fab{position:fixed;bottom:24px;right:18px;width:54px;height:54px;border-radius:50%;background:var(--pink);color:var(--navy);border:none;font-size:1.6rem;cursor:pointer;box-shadow:0 4px 18px rgba(13,27,62,.22);display:flex;align-items:center;justify-content:center;z-index:200;transition:transform .15s;-webkit-tap-highlight-color:transparent;}
+.fab:active{transform:scale(.92);}
+
+/* DRAWER */
+.drawer-bd{display:none;position:fixed;inset:0;background:rgba(13,27,62,.45);z-index:300;align-items:flex-end;justify-content:center;}
+.drawer-bd.open{display:flex;}
+.drawer{background:var(--white);border-radius:18px 18px 0 0;width:100%;max-width:600px;max-height:92vh;display:flex;flex-direction:column;animation:su .22s ease;}
+@keyframes su{from{transform:translateY(60px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+.drawer-handle{width:36px;height:4px;background:var(--gray-light);border-radius:2px;margin:12px auto 0;flex-shrink:0;}
+.drawer-hdr{padding:14px 18px 0;display:flex;align-items:flex-start;justify-content:space-between;flex-shrink:0;}
+.drawer-title{font-size:1.05rem;font-weight:700;flex:1;padding-right:12px;}
+.drawer-close{background:none;border:none;font-size:1.2rem;color:var(--gray);cursor:pointer;}
+.drawer-body{overflow-y:auto;padding:14px 18px 32px;flex:1;}
+
+/* DRAWER TABS */
+.dtabs{display:flex;border-bottom:1px solid var(--gray-light);margin-bottom:16px;}
+.dtab{flex:1;padding:9px 4px;text-align:center;font-size:.72rem;color:var(--gray);letter-spacing:.05em;text-transform:uppercase;border-bottom:2px solid transparent;cursor:pointer;transition:all .15s;}
+.dtab.active{color:var(--navy);border-bottom-color:var(--navy);}
+.dsec{display:none;}
+.dsec.active{display:block;}
+
+/* INFO GRID */
+.igrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.ifield label{font-size:.7rem;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:3px;}
+.ifield input,.ifield select,.ifield textarea{width:100%;border:1px solid var(--gray-light);border-radius:6px;padding:9px 10px;font-size:.86rem;font-family:var(--font);color:var(--navy);background:var(--cream);outline:none;transition:border-color .15s;}
+.ifield input:focus,.ifield select:focus,.ifield textarea:focus{border-color:var(--navy-soft);}
+.ifield.full{grid-column:1/-1;}
+.ifield textarea{resize:vertical;min-height:56px;}
+
+/* STATUS GRID */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.sopt{padding:11px 8px;border-radius:8px;border:2px solid transparent;cursor:pointer;text-align:center;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.04em;transition:all .15s;line-height:1.3;}
+.sopt.sel{border-color:currentColor;}
+
+/* ITEM ROW */
+.item-list{margin-top:4px;}
+.irow{display:flex;align-items:center;gap:9px;padding:9px 12px;background:var(--cream);border-radius:8px;margin-bottom:6px;}
+.irow-body{flex:1;min-width:0;}
+.irow-title{font-size:.86rem;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.irow-meta{font-size:.72rem;color:var(--gray);margin-top:1px;}
+.chkbox{width:22px;height:22px;border:2px solid var(--gray-light);border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s;background:var(--white);}
+.chkbox.on{background:var(--green);border-color:var(--green);color:white;font-size:.8rem;}
+.qtyc{display:flex;align-items:center;gap:5px;flex-shrink:0;}
+.qtyb{width:26px;height:26px;border:1px solid var(--gray-light);background:var(--white);border-radius:5px;font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--navy);}
+.qtyv{font-size:.88rem;font-weight:600;min-width:22px;text-align:center;}
+.rmb{background:none;border:none;cursor:pointer;color:var(--gray);font-size:.88rem;padding:3px;border-radius:4px;}
+.rmb:hover{color:var(--red);}
+
+/* CAT LABEL */
+.cat-label{font-size:.68rem;color:var(--gray);text-transform:uppercase;letter-spacing:.08em;margin:12px 0 6px;font-weight:600;}
+
+/* MINI ADD */
+.mini-add{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;}
+.mi{flex:1;min-width:80px;border:1px solid var(--gray-light);border-radius:6px;padding:8px 10px;font-size:.84rem;font-family:var(--font);color:var(--navy);background:var(--white);outline:none;}
+.mi:focus{border-color:var(--navy-soft);}
+.mib{background:var(--navy);color:var(--white);border:none;border-radius:6px;padding:8px 14px;font-size:.84rem;cursor:pointer;white-space:nowrap;font-family:var(--font);}
+
+/* SAVE / DELETE BTNS */
+.save-btn{width:100%;padding:13px;background:var(--navy);color:var(--white);border:none;border-radius:8px;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:10px;}
+.del-btn{width:100%;padding:13px;background:var(--red-bg);color:var(--red);border:none;border-radius:8px;font-size:.88rem;font-weight:600;cursor:pointer;margin-top:8px;}
+
+/* NEW MODAL */
+.modal-bd{display:none;position:fixed;inset:0;background:rgba(13,27,62,.5);z-index:400;align-items:center;justify-content:center;padding:20px;}
+.modal-bd.open{display:flex;}
+.modal{background:var(--white);border-radius:14px;padding:22px 20px 24px;width:100%;max-width:420px;animation:su .2s ease;}
+.modal-title{font-size:1rem;font-weight:700;margin-bottom:18px;}
+.mfield{margin-bottom:12px;}
+.mfield label{font-size:.72rem;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px;}
+.mfield input,.mfield select{width:100%;border:1px solid var(--gray-light);border-radius:7px;padding:10px 12px;font-size:.88rem;font-family:var(--font);color:var(--navy);background:var(--cream);outline:none;}
+.mfield input:focus,.mfield select:focus{border-color:var(--navy-soft);}
+.tgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.topt{padding:13px 8px;border-radius:8px;cursor:pointer;text-align:center;font-size:.78rem;font-weight:700;text-transform:uppercase;border:2px solid transparent;transition:all .15s;-webkit-tap-highlight-color:transparent;line-height:1.4;}
+.topt.sel{border-color:currentColor;}
+.t-b2b{background:var(--blue-bg);color:var(--blue);}
+.t-evento{background:#fdf0f0;color:var(--pink-dark);}
+.t-b2c{background:var(--green-bg);color:var(--green);}
+.t-interno{background:var(--purple-bg);color:var(--purple);}
+.modal-btns{display:flex;gap:8px;margin-top:18px;}
+.modal-btns button{flex:1;padding:12px;border:none;border-radius:7px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:var(--font);}
+.btn-p{background:var(--navy);color:var(--white);}
+.btn-g{background:var(--gray-light);color:var(--gray);}
+
+/* TOAST */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--navy);color:var(--white);padding:10px 22px;border-radius:20px;font-size:.82rem;opacity:0;transition:all .25s;z-index:600;white-space:nowrap;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+@media(max-width:380px){
+  .pin-keypad{grid-template-columns:repeat(3,62px);}
+  .pin-key{height:62px;}
+  .igrid{grid-template-columns:1fr;}
+  .sgrid{grid-template-columns:1fr;}
 }
+</style>
+</head>
+<body>
 
-function Btn({ children, onClick, variant = "primary", disabled, small }) {
-  const styles = {
-    primary: { background: COLORS.accent, color: "#0f0e0d", border: "none" },
-    ghost: { background: "transparent", color: COLORS.text, border: `1px solid ${COLORS.border}` },
-    danger: { background: "transparent", color: COLORS.red, border: `1px solid ${COLORS.red}44` },
-  };
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      style={{
-        ...styles[variant],
-        borderRadius: 6,
-        padding: small ? "4px 10px" : "8px 16px",
-        fontSize: small ? 12 : 13,
-        fontWeight: 600,
-        cursor: disabled ? "not-allowed" : "pointer",
-        opacity: disabled ? 0.5 : 1,
-        fontFamily: "inherit",
-        transition: "opacity 0.15s",
-        whiteSpace: "nowrap",
-      }}
-    >{children}</button>
-  );
-}
+<!-- PIN -->
+<div id="pin-screen">
+  <div class="pin-logo">Bendito Lab</div>
+  <div class="pin-sub">Producción</div>
+  <div class="pin-dots">
+    <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
+    <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
+  </div>
+  <div class="pin-keypad">
+    <button class="pin-key" onclick="pp('1')">1</button>
+    <button class="pin-key" onclick="pp('2')">2</button>
+    <button class="pin-key" onclick="pp('3')">3</button>
+    <button class="pin-key" onclick="pp('4')">4</button>
+    <button class="pin-key" onclick="pp('5')">5</button>
+    <button class="pin-key" onclick="pp('6')">6</button>
+    <button class="pin-key" onclick="pp('7')">7</button>
+    <button class="pin-key" onclick="pp('8')">8</button>
+    <button class="pin-key" onclick="pp('9')">9</button>
+    <button class="pin-key del" onclick="pc()">✕</button>
+    <button class="pin-key" onclick="pp('0')">0</button>
+    <button class="pin-key del" onclick="pb()">⌫</button>
+  </div>
+  <div class="pin-err" id="pin-err">PIN incorrecto</div>
+</div>
 
-function Input({ label, value, onChange, type = "text", placeholder }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {label && <label style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</label>}
-      <input
-        type={type}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        style={{
-          background: COLORS.bg,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 6,
-          color: COLORS.text,
-          padding: "8px 10px",
-          fontSize: 13,
-          fontFamily: "inherit",
-          outline: "none",
-          width: "100%",
-          boxSizing: "border-box",
-        }}
-      />
+<!-- APP -->
+<div id="app">
+  <div class="hdr">
+    <div class="hdr-top">
+      <div class="hdr-logo">Producción</div>
+      <div class="hdr-actions">
+        <div class="sync-dot" id="sync-dot" title="Google Sheets"></div>
+        <button class="btn-icon-sm" onclick="lockApp()">🔒</button>
+      </div>
     </div>
-  );
-}
+    <div class="filter-bar">
+      <button class="filter-chip fc-all active" data-f="all" onclick="setFilter('all')">Todos</button>
+      <button class="filter-chip fc-b2b" data-f="b2b" onclick="setFilter('b2b')">🏢 B2B</button>
+      <button class="filter-chip fc-evento" data-f="evento" onclick="setFilter('evento')">🎉 Eventos</button>
+      <button class="filter-chip fc-b2c" data-f="b2c" onclick="setFilter('b2c')">👤 B2C</button>
+      <button class="filter-chip fc-interno" data-f="interno" onclick="setFilter('interno')">⚙️ Interno</button>
+    </div>
+  </div>
 
-function Select({ label, value, onChange, options }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      {label && <label style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>{label}</label>}
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        style={{
-          background: COLORS.bg,
-          border: `1px solid ${COLORS.border}`,
-          borderRadius: 6,
-          color: COLORS.text,
-          padding: "8px 10px",
-          fontSize: 13,
-          fontFamily: "inherit",
-          outline: "none",
-          width: "100%",
-        }}
-      >
-        {options.map((o) => <option key={o} value={o}>{o}</option>)}
+  <main class="app-main">
+    <div class="list-meta">
+      <span class="list-count" id="list-count">0 pedidos</span>
+      <select class="sort-sel" onchange="setSort(this.value)">
+        <option value="fecha">Por fecha</option>
+        <option value="estado">Por estado</option>
+        <option value="tipo">Por tipo</option>
+        <option value="nuevo">Más recientes</option>
       </select>
     </div>
-  );
-}
+    <div id="ped-list"></div>
+  </main>
+</div>
 
-// ── Checklist Component ────────────────────────────────────────────────────
+<button class="fab" id="fab" onclick="openNewModal()" style="display:none">+</button>
 
-function Checklist({ items, onChange }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-      {CHECKLIST_ITEMS.map((item, i) => (
-        <label key={i} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-          <input
-            type="checkbox"
-            checked={items[i] || false}
-            onChange={(e) => {
-              const next = [...items];
-              next[i] = e.target.checked;
-              onChange(next);
-            }}
-            style={{ accentColor: COLORS.accent, width: 14, height: 14 }}
-          />
-          <span style={{
-            fontSize: 13,
-            color: items[i] ? COLORS.textMuted : COLORS.text,
-            textDecoration: items[i] ? "line-through" : "none",
-          }}>{item}</span>
-        </label>
-      ))}
+<!-- DRAWER -->
+<div class="drawer-bd" id="drawer-bd" onclick="if(event.target===this)closeDrawer()">
+  <div class="drawer">
+    <div class="drawer-handle"></div>
+    <div class="drawer-hdr">
+      <div class="drawer-title" id="drawer-title">Pedido</div>
+      <button class="drawer-close" onclick="closeDrawer()">✕</button>
     </div>
-  );
+    <div class="drawer-body">
+      <div class="dtabs">
+        <div class="dtab active" data-dt="info" onclick="dTab('info')">Info</div>
+        <div class="dtab" data-dt="mat" onclick="dTab('mat')">Materiales</div>
+        <div class="dtab" data-dt="chk" onclick="dTab('chk')">Checklist</div>
+        <div class="dtab" data-dt="mal" onclick="dTab('mal')">Maleta</div>
+      </div>
+
+      <!-- INFO -->
+      <div class="dsec active" id="dsec-info">
+        <div class="igrid">
+          <div class="ifield full">
+            <label>Cliente / Referencia</label>
+            <input id="d-cliente" placeholder="Nombre, empresa o ref">
+          </div>
+          <div class="ifield">
+            <label>Tipo</label>
+            <select id="d-tipo">
+              <option value="b2b">B2B — Empresa</option>
+              <option value="evento">Evento Dilo Bonito</option>
+              <option value="b2c">B2C — Particular</option>
+              <option value="interno">Interno</option>
+            </select>
+          </div>
+          <div class="ifield">
+            <label>Fecha entrega</label>
+            <input type="date" id="d-fecha">
+          </div>
+          <div class="ifield full">
+            <label>Artículo / descripción</label>
+            <input id="d-articulo" placeholder="Ej: 50 neceseres sublimados logo empresa">
+          </div>
+          <div class="ifield full">
+            <label>Estado</label>
+            <div class="sgrid" id="sgrid"></div>
+          </div>
+          <div class="ifield full">
+            <label>Notas de producción</label>
+            <textarea id="d-notas" placeholder="Colores, textos, instrucciones, datos cliente…"></textarea>
+          </div>
+        </div>
+        <button class="save-btn" onclick="saveDrawer()">Guardar cambios</button>
+        <button class="del-btn" onclick="deletePedido()">Eliminar pedido</button>
+      </div>
+
+      <!-- MATERIALES -->
+      <div class="dsec" id="dsec-mat">
+        <div class="item-list" id="d-mat-list"></div>
+        <div class="mini-add">
+          <input class="mi" id="d-mn" placeholder="Artículo (ej: transfer A4)" style="flex:2">
+          <input class="mi" id="d-mp" placeholder="Proveedor" style="max-width:110px">
+          <input class="mi" id="d-mq" placeholder="Cant" type="number" min="1" style="max-width:62px">
+          <button class="mib" onclick="addMat()">+</button>
+        </div>
+      </div>
+
+      <!-- CHECKLIST -->
+      <div class="dsec" id="dsec-chk">
+        <div style="margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;font-size:.78rem;color:var(--gray);margin-bottom:6px">
+            <span id="chk-prog">0 / 0</span>
+          </div>
+          <div style="height:4px;background:var(--gray-light);border-radius:2px;overflow:hidden">
+            <div id="chk-bar" style="height:100%;background:var(--green);border-radius:2px;transition:width .3s;width:0%"></div>
+          </div>
+        </div>
+        <div class="item-list" id="d-chk-list"></div>
+        <div class="mini-add">
+          <input class="mi" id="d-ct" placeholder="Tarea de producción" style="flex:2">
+          <select class="mi" id="d-cc" style="max-width:110px">
+            <option value="prep">Prep</option>
+            <option value="produccion">Producción</option>
+            <option value="acabados">Acabados</option>
+            <option value="embalaje">Embalaje</option>
+          </select>
+          <button class="mib" onclick="addChk()">+</button>
+        </div>
+      </div>
+
+      <!-- MALETA -->
+      <div class="dsec" id="dsec-mal">
+        <div style="font-size:.78rem;color:var(--gray);margin-bottom:12px">Lo que va con este pedido — al evento o al cliente.</div>
+        <div class="item-list" id="d-mal-list"></div>
+        <div class="mini-add">
+          <input class="mi" id="d-mi" placeholder="Qué llevas" style="flex:2">
+          <input class="mi" id="d-miq" placeholder="Cant" type="number" min="1" style="max-width:62px">
+          <button class="mib" onclick="addMal()">+</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL NUEVO PEDIDO -->
+<div class="modal-bd" id="modal-bd" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-title">Nuevo pedido</div>
+    <div class="mfield">
+      <label>Tipo</label>
+      <div class="tgrid">
+        <div class="topt t-b2b sel" data-t="b2b" onclick="selType('b2b')">🏢<br>B2B</div>
+        <div class="topt t-evento" data-t="evento" onclick="selType('evento')">🎉<br>Evento</div>
+        <div class="topt t-b2c" data-t="b2c" onclick="selType('b2c')">👤<br>B2C</div>
+        <div class="topt t-interno" data-t="interno" onclick="selType('interno')">⚙️<br>Interno</div>
+      </div>
+    </div>
+    <div class="mfield">
+      <label>Cliente / Referencia</label>
+      <input id="m-cliente" placeholder="Nombre, empresa o ref interna">
+    </div>
+    <div class="mfield">
+      <label>Artículo / descripción</label>
+      <input id="m-art" placeholder="Ej: 50 neceseres sublimados">
+    </div>
+    <div class="mfield">
+      <label>Fecha de entrega</label>
+      <input type="date" id="m-fecha">
+    </div>
+    <div class="modal-btns">
+      <button class="btn-g" onclick="closeModal()">Cancelar</button>
+      <button class="btn-p" onclick="createPedido()">Crear</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const PIN_DEFAULT = '1234';
+const ESTADOS = [
+  {id:'pendiente',  label:'Pendiente',       cls:'bp',  color:'var(--amber)',  bg:'var(--amber-bg)'},
+  {id:'produccion', label:'En producción',   cls:'bpr', color:'var(--blue)',   bg:'var(--blue-bg)'},
+  {id:'listo',      label:'Listo',           cls:'bl',  color:'var(--green)',  bg:'var(--green-bg)'},
+  {id:'enviado',    label:'Entregado',       cls:'be',  color:'var(--purple)', bg:'var(--purple-bg)'},
+  {id:'cancelado',  label:'Cancelado',       cls:'bc',  color:'var(--red)',    bg:'var(--red-bg)'},
+];
+const TCOLOR = {b2b:'var(--blue)',evento:'var(--pink-dark)',b2c:'var(--green)',interno:'var(--purple)'};
+const TLABEL = {b2b:'B2B',evento:'Evento Dilo Bonito',b2c:'B2C',interno:'Interno'};
+const CATS = [{id:'prep',l:'Prep'},{id:'produccion',l:'Producción'},{id:'acabados',l:'Acabados'},{id:'embalaje',l:'Embalaje'}];
+
+let state = {pedidos:[]};
+let filter = 'all', sort = 'fecha';
+let activeId = null, newType = 'b2b';
+let pinBuf = '';
+
+const SHEETS_URL='https://script.google.com/macros/s/AKfycbzg66c21DuzAMFrfHav0rIGiwn8NcsFNngrz4SAozoP7E_BFjP88BNF7vxRf2XBMmZZtg/exec';
+function load(){try{const s=localStorage.getItem('bl3');if(s)state=JSON.parse(s);}catch(e){}}
+function save(){localStorage.setItem('bl3',JSON.stringify(state));syncSheets();}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
+function ged(id){return state.pedidos.find(p=>p.id===id);}
+
+// PIN
+function pp(d){if(pinBuf.length>=4)return;pinBuf+=d;ud();if(pinBuf.length===4)setTimeout(checkPin,120);}
+function pb(){pinBuf=pinBuf.slice(0,-1);ud();}
+function pc(){pinBuf='';ud();}
+function ud(){for(let i=0;i<4;i++)document.getElementById('d'+i).classList.toggle('filled',i<pinBuf.length);}
+function checkPin(){
+  const ok=localStorage.getItem('bl3_pin')||PIN_DEFAULT;
+  if(pinBuf===ok){
+    document.getElementById('pin-screen').style.display='none';
+    document.getElementById('app').style.display='flex';
+    document.getElementById('fab').style.display='flex';
+    load();render();
+  } else {
+    document.getElementById('pin-err').classList.add('show');
+    for(let i=0;i<4;i++)document.getElementById('d'+i).classList.add('filled');
+    setTimeout(()=>{pinBuf='';ud();document.getElementById('pin-err').classList.remove('show');},800);
+  }
+}
+function lockApp(){
+  pinBuf='';ud();
+  document.getElementById('app').style.display='none';
+  document.getElementById('pin-screen').style.display='flex';
+  document.getElementById('fab').style.display='none';
 }
 
-// ── Producto Block ─────────────────────────────────────────────────────────
+// FILTER / SORT
+function setFilter(f){
+  filter=f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.toggle('active',c.dataset.f===f));
+  render();
+}
+function setSort(s){sort=s;render();}
+function filtered(){
+  let arr=state.pedidos.filter(p=>filter==='all'||p.tipo===filter);
+  if(sort==='fecha')arr.sort((a,b)=>(a.fecha||'9999')<(b.fecha||'9999')?-1:1);
+  else if(sort==='estado')arr.sort((a,b)=>ESTADOS.findIndex(e=>e.id===a.estado)-ESTADOS.findIndex(e=>e.id===b.estado));
+  else if(sort==='tipo')arr.sort((a,b)=>a.tipo.localeCompare(b.tipo));
+  else arr.sort((a,b)=>b.id.localeCompare(a.id));
+  return arr;
+}
 
-function ProductoBlock({ producto, onChange, onRemove, index }) {
-  const updateField = (k, v) => onChange({ ...producto, [k]: v });
+// RENDER LIST
+function render(){
+  const arr=filtered();
+  const total=filter==='all'?state.pedidos.length:arr.length;
+  document.getElementById('list-count').textContent=total+' pedido'+(total!==1?'s':'')+(filter!=='all'?' · filtrado':'');
+  const cont=document.getElementById('ped-list');
+  if(!arr.length){
+    const em={all:'📋',b2b:'🏢',evento:'🎉',b2c:'👤',interno:'⚙️'};
+    cont.innerHTML=`<div class="empty"><div class="ei">${em[filter]||'📋'}</div><p>No hay pedidos${filter!=='all'?' de este tipo':''}.<br>Pulsa + para crear uno.</p></div>`;
+    return;
+  }
+  const today=new Date().toISOString().split('T')[0];
+  cont.innerHTML=arr.map(p=>{
+    const est=ESTADOS.find(e=>e.id===p.estado)||ESTADOS[0];
+    const chkT=(p.checklist||[]).length;
+    const chkD=(p.checklist||[]).filter(x=>x.done).length;
+    const pct=chkT?Math.round(chkD/chkT*100):0;
+    const urgent=p.fecha&&p.fecha<=today&&p.estado!=='listo'&&p.estado!=='enviado'&&p.estado!=='cancelado';
+    return `<div class="ped-card" onclick="openDrawer('${p.id}')">
+      <div class="ped-card-top">
+        <div class="type-dot" style="background:${TCOLOR[p.tipo]}"></div>
+        <div class="ped-body">
+          <div class="ped-title">${esc(p.cliente||'Sin nombre')}</div>
+          <div class="ped-meta">${p.articulo?esc(p.articulo)+' · ':''}${TLABEL[p.tipo]||p.tipo}</div>
+        </div>
+        <div class="ped-right">
+          <span class="badge ${est.cls}">${est.label}</span>
+          ${p.fecha?`<span class="ped-fecha${urgent?' urgent':''}">${fmtF(p.fecha)}</span>`:''}
+        </div>
+      </div>
+      ${chkT?`<div class="ped-progress"><div class="ped-progress-fill" style="width:${pct}%"></div></div>`:''}
+    </div>`;
+  }).join('');
+}
 
-  const addUnidad = () => onChange({
-    ...producto,
-    unidades: [...(producto.unidades || []), { nombre: "", talla: "Única", color: "", personalizacion: "", listo: false }],
+function fmtF(f){if(!f)return'';const[y,m,d]=f.split('-');return`${d}/${m}/${y}`;}
+
+// NEW PEDIDO
+function openNewModal(){
+  document.getElementById('m-cliente').value='';
+  document.getElementById('m-art').value='';
+  document.getElementById('m-fecha').value='';
+  selType('b2b');
+  document.getElementById('modal-bd').classList.add('open');
+  setTimeout(()=>document.getElementById('m-cliente').focus(),150);
+}
+function closeModal(){document.getElementById('modal-bd').classList.remove('open');}
+function selType(t){
+  newType=t;
+  document.querySelectorAll('.topt').forEach(o=>o.classList.toggle('sel',o.dataset.t===t));
+}
+function createPedido(){
+  const cliente=document.getElementById('m-cliente').value.trim();
+  if(!cliente){toast('Añade cliente o referencia');return;}
+  const p={id:uid(),tipo:newType,cliente,articulo:document.getElementById('m-art').value.trim(),
+    fecha:document.getElementById('m-fecha').value,estado:'pendiente',notas:'',
+    materiales:[],checklist:[],maleta:[],ts:Date.now()};
+  state.pedidos.unshift(p);
+  save();render();closeModal();
+  toast('Pedido creado ✓');
+  setTimeout(()=>openDrawer(p.id),200);
+}
+
+// DRAWER
+function openDrawer(id){
+  activeId=id;
+  const p=ged(id);if(!p)return;
+  document.getElementById('drawer-title').textContent=p.cliente||'Pedido';
+  document.getElementById('d-cliente').value=p.cliente||'';
+  document.getElementById('d-tipo').value=p.tipo||'b2b';
+  document.getElementById('d-fecha').value=p.fecha||'';
+  document.getElementById('d-articulo').value=p.articulo||'';
+  document.getElementById('d-notas').value=p.notas||'';
+  renderSGrid(p.estado);
+  dTab('info');
+  renderMat();renderChk();renderMal();
+  document.getElementById('drawer-bd').classList.add('open');
+}
+function closeDrawer(){document.getElementById('drawer-bd').classList.remove('open');activeId=null;}
+function dTab(t){
+  document.querySelectorAll('.dtab').forEach(d=>d.classList.toggle('active',d.dataset.dt===t));
+  document.querySelectorAll('.dsec').forEach(s=>s.classList.toggle('active',s.id==='dsec-'+t));
+}
+function renderSGrid(cur){
+  document.getElementById('sgrid').innerHTML=ESTADOS.map(e=>`
+    <div class="sopt${e.id===cur?' sel':''}" style="background:${e.bg};color:${e.color}" onclick="selStatus('${e.id}')">${e.label}</div>
+  `).join('');
+}
+function selStatus(sid){
+  const p=ged(activeId);if(!p)return;
+  p.estado=sid;renderSGrid(sid);
+}
+function saveDrawer(){
+  const p=ged(activeId);if(!p)return;
+  p.cliente=document.getElementById('d-cliente').value.trim();
+  p.tipo=document.getElementById('d-tipo').value;
+  p.fecha=document.getElementById('d-fecha').value;
+  p.articulo=document.getElementById('d-articulo').value.trim();
+  p.notas=document.getElementById('d-notas').value.trim();
+  document.getElementById('drawer-title').textContent=p.cliente||'Pedido';
+  save();render();toast('Guardado ✓');
+}
+function deletePedido(){
+  if(!confirm('¿Eliminar este pedido?'))return;
+  state.pedidos=state.pedidos.filter(p=>p.id!==activeId);
+  save();render();closeDrawer();toast('Eliminado');
+}
+
+// MATERIALES
+function renderMat(){
+  const p=ged(activeId);if(!p)return;
+  const arr=p.materiales||[];
+  const c=document.getElementById('d-mat-list');
+  if(!arr.length){c.innerHTML='<div style="font-size:.8rem;color:var(--gray);padding:6px 0">Sin materiales.</div>';return;}
+  c.innerHTML=arr.map((m,i)=>`
+    <div class="irow">
+      <div class="irow-body">
+        <div class="irow-title">${esc(m.nombre)}</div>
+        ${m.proveedor?`<div class="irow-meta">${esc(m.proveedor)}</div>`:''}
+      </div>
+      <div class="qtyc">
+        <button class="qtyb" onclick="chgMat(${i},-1)">−</button>
+        <span class="qtyv">${m.qty}</span>
+        <button class="qtyb" onclick="chgMat(${i},1)">+</button>
+      </div>
+      <button class="rmb" onclick="rmMat(${i})">🗑</button>
+    </div>`).join('');
+}
+function addMat(){
+  const n=document.getElementById('d-mn').value.trim();if(!n)return;
+  const p=ged(activeId);if(!p)return;
+  p.materiales=p.materiales||[];
+  p.materiales.push({nombre:n,proveedor:document.getElementById('d-mp').value.trim(),qty:parseInt(document.getElementById('d-mq').value)||1});
+  document.getElementById('d-mn').value='';document.getElementById('d-mp').value='';document.getElementById('d-mq').value='';
+  save();renderMat();
+}
+function chgMat(i,d){const p=ged(activeId);if(!p)return;p.materiales[i].qty=Math.max(1,(p.materiales[i].qty||1)+d);save();renderMat();}
+function rmMat(i){const p=ged(activeId);if(!p)return;p.materiales.splice(i,1);save();renderMat();}
+
+// CHECKLIST
+function renderChk(){
+  const p=ged(activeId);if(!p)return;
+  const arr=p.checklist||[];
+  const done=arr.filter(x=>x.done).length;
+  const pct=arr.length?Math.round(done/arr.length*100):0;
+  document.getElementById('chk-prog').textContent=`${done} / ${arr.length} completadas`;
+  document.getElementById('chk-bar').style.width=pct+'%';
+  const c=document.getElementById('d-chk-list');
+  if(!arr.length){c.innerHTML='<div style="font-size:.8rem;color:var(--gray);padding:6px 0">Sin tareas.</div>';return;}
+  let html='';
+  CATS.forEach(cat=>{
+    const items=arr.filter(x=>x.cat===cat.id);
+    if(!items.length)return;
+    html+=`<div class="cat-label">${cat.l}</div>`;
+    items.forEach(item=>{
+      const gi=arr.indexOf(item);
+      html+=`<div class="irow" style="${item.done?'opacity:.5':''}">
+        <div class="chkbox${item.done?' on':''}" onclick="togChk(${gi})">${item.done?'✓':''}</div>
+        <div class="irow-body"><div class="irow-title" style="${item.done?'text-decoration:line-through':''}">${esc(item.tarea)}</div></div>
+        <button class="rmb" onclick="rmChk(${gi})">🗑</button>
+      </div>`;
+    });
   });
+  c.innerHTML=html;
+}
+function addChk(){
+  const t=document.getElementById('d-ct').value.trim();if(!t)return;
+  const p=ged(activeId);if(!p)return;
+  p.checklist=p.checklist||[];
+  p.checklist.push({tarea:t,cat:document.getElementById('d-cc').value,done:false});
+  document.getElementById('d-ct').value='';
+  save();renderChk();render();
+}
+function togChk(i){const p=ged(activeId);if(!p)return;p.checklist[i].done=!p.checklist[i].done;save();renderChk();render();}
+function rmChk(i){const p=ged(activeId);if(!p)return;p.checklist.splice(i,1);save();renderChk();}
 
-  const updateUnidad = (i, field, val) => {
-    const next = [...producto.unidades];
-    next[i] = { ...next[i], [field]: val };
-    onChange({ ...producto, unidades: next });
-  };
-
-  const removeUnidad = (i) => {
-    const next = producto.unidades.filter((_, idx) => idx !== i);
-    onChange({ ...producto, unidades: next });
-  };
-
-  const listos = (producto.unidades || []).filter((u) => u.listo).length;
-  const total = (producto.unidades || []).length;
-  const checkProgress = (producto.checklist || []).filter(Boolean).length;
-
-  return (
-    <div style={{
-      background: COLORS.bg,
-      border: `1px solid ${COLORS.border}`,
-      borderRadius: 10,
-      padding: 16,
-      display: "flex",
-      flexDirection: "column",
-      gap: 14,
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 12, color: COLORS.accent, fontWeight: 700, letterSpacing: "0.08em" }}>ARTÍCULO {index + 1}</span>
-        <Btn variant="danger" small onClick={onRemove}>✕ Eliminar</Btn>
+// MALETA
+function renderMal(){
+  const p=ged(activeId);if(!p)return;
+  const arr=p.maleta||[];
+  const c=document.getElementById('d-mal-list');
+  if(!arr.length){c.innerHTML='<div style="font-size:.8rem;color:var(--gray);padding:6px 0">Sin elementos.</div>';return;}
+  c.innerHTML=arr.map((m,i)=>`
+    <div class="irow" style="${m.checked?'opacity:.5':''}">
+      <div class="chkbox${m.checked?' on':''}" onclick="togMal(${i})">${m.checked?'✓':''}</div>
+      <div class="irow-body">
+        <div class="irow-title" style="${m.checked?'text-decoration:line-through':''}">${esc(m.item)}</div>
+        <div class="irow-meta">x${m.qty}</div>
       </div>
+      <button class="rmb" onclick="rmMal(${i})">🗑</button>
+    </div>`).join('');
+}
+function addMal(){
+  const item=document.getElementById('d-mi').value.trim();if(!item)return;
+  const p=ged(activeId);if(!p)return;
+  p.maleta=p.maleta||[];
+  p.maleta.push({item,qty:parseInt(document.getElementById('d-miq').value)||1,checked:false});
+  document.getElementById('d-mi').value='';document.getElementById('d-miq').value='';
+  save();renderMal();
+}
+function togMal(i){const p=ged(activeId);if(!p)return;p.maleta[i].checked=!p.maleta[i].checked;save();renderMal();}
+function rmMal(i){const p=ged(activeId);if(!p)return;p.maleta.splice(i,1);save();renderMal();}
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-        <Input label="Nombre del artículo" value={producto.nombre || ""} onChange={(v) => updateField("nombre", v)} placeholder="ej: Camisetas evento" />
-        <Select label="Tipo de producto" value={producto.tipo || "Textil"} onChange={(v) => updateField("tipo", v)} options={TIPOS_PRODUCTO} />
-        <Select label="Técnica" value={producto.tecnica || "DTF Textil"} onChange={(v) => updateField("tecnica", v)} options={TECNICAS} />
-        <Input label="Proveedor" value={producto.proveedor || ""} onChange={(v) => updateField("proveedor", v)} placeholder="ej: 321DTF" />
-        <Input label="Coste unitario (€)" value={producto.costeUnitario || ""} onChange={(v) => updateField("costeUnitario", v)} type="number" />
-        <Input label="Cantidad total" value={producto.cantidad || ""} onChange={(v) => updateField("cantidad", v)} type="number" />
-      </div>
-
-      {producto.tipo === "Textil" && (
-        <Input label="Colores disponibles" value={producto.colores || ""} onChange={(v) => updateField("colores", v)} placeholder="ej: Negro, Blanco, Rojo" />
-      )}
-
-      {/* Unidades */}
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
-            Unidades — {listos}/{total} listos
-          </span>
-          <Btn small variant="ghost" onClick={addUnidad}>+ Añadir unidad</Btn>
-        </div>
-
-        {total === 0 && (
-          <div style={{ color: COLORS.textDim, fontSize: 12, fontStyle: "italic" }}>Sin unidades. Pulsa "Añadir unidad" para empezar.</div>
-        )}
-
-        {(producto.unidades || []).map((u, i) => (
-          <div key={i} style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr 2fr 32px 24px",
-            gap: 6,
-            alignItems: "center",
-            padding: "6px 0",
-            borderBottom: `1px solid ${COLORS.border}`,
-          }}>
-            <input
-              placeholder="Nombre"
-              value={u.nombre}
-              onChange={(e) => updateUnidad(i, "nombre", e.target.value)}
-              style={{ background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.text, padding: "4px 6px", fontSize: 12, fontFamily: "inherit" }}
-            />
-            {producto.tipo === "Textil" ? (
-              <select
-                value={u.talla}
-                onChange={(e) => updateUnidad(i, "talla", e.target.value)}
-                style={{ background: COLORS.surface, border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.text, padding: "4px 6px", fontSize: 12, fontFamily: "inherit" }}
-              >
-                {TALLAS.map((t) => <option key={t}>{t}</option>)}
-              </select>
-            ) : (
-              <span style={{ fontSize: 11, color: COLORS.textDim }}>—</span>
-            )}
-            <input
-              placeholder="Color"
-              value={u.color}
-              onChange={(e) => updateUnidad(i, "color", e.target.value)}
-              style={{ background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.text, padding: "4px 6px", fontSize: 12, fontFamily: "inherit" }}
-            />
-            <input
-              placeholder="Personalización"
-              value={u.personalizacion}
-              onChange={(e) => updateUnidad(i, "personalizacion", e.target.value)}
-              style={{ background: "transparent", border: `1px solid ${COLORS.border}`, borderRadius: 4, color: COLORS.text, padding: "4px 6px", fontSize: 12, fontFamily: "inherit" }}
-            />
-            <input
-              type="checkbox"
-              checked={u.listo}
-              onChange={(e) => updateUnidad(i, "listo", e.target.checked)}
-              style={{ accentColor: COLORS.accent, width: 14, height: 14 }}
-            />
-            <button
-              onClick={() => removeUnidad(i)}
-              style={{ background: "none", border: "none", color: COLORS.textDim, cursor: "pointer", fontSize: 14, padding: 0 }}
-            >✕</button>
-          </div>
-        ))}
-
-        {total > 0 && (
-          <div style={{ marginTop: 4, fontSize: 11, color: COLORS.textMuted }}>
-            Pendientes sin nombre: {(producto.unidades || []).filter((u) => !u.nombre).length} · Total unidades: {total}
-          </div>
-        )}
-      </div>
-
-      {/* Checklist */}
-      <div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-          <span style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Checklist producción</span>
-          <span style={{ fontSize: 11, color: checkProgress === CHECKLIST_ITEMS.length ? COLORS.green : COLORS.textMuted }}>
-            {checkProgress}/{CHECKLIST_ITEMS.length}
-          </span>
-        </div>
-        <Checklist items={producto.checklist || []} onChange={(v) => updateField("checklist", v)} />
-      </div>
-    </div>
-  );
+// SYNC
+async function syncSheets(){
+  const url=SHEETS_URL;
+  if(!url)return;
+  document.getElementById('sync-dot').className='sync-dot spin';
+  try{
+    await fetch(url,{method:'POST',mode:'no-cors',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'sync',data:state})});
+    document.getElementById('sync-dot').className='sync-dot ok';
+    setTimeout(()=>document.getElementById('sync-dot').className='sync-dot',3000);
+  }catch(e){document.getElementById('sync-dot').className='sync-dot err';}
 }
 
-// ── Form: Nuevo Pedido ─────────────────────────────────────────────────────
+// TOAST
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200);}
 
-function FormNuevoPedido({ onSaved, onCancel }) {
-  const [form, setForm] = useState({
-    nombre: "",
-    tipo: "Evento",
-    estado: "Sin empezar",
-    fechaEntrega: "",
-    totalPedido: "",
-    senal: "",
-    pagoPendiente: "",
-    proveedor: "",
-    notas: "",
-    productos: [],
-  });
-  const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState("");
+// UTILS
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
 
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
-
-  const addProducto = () => set("productos", [...form.productos, {
-    nombre: "", tipo: "Textil", tecnica: "DTF Textil", proveedor: "", costeUnitario: "", cantidad: "", colores: "",
-    unidades: [], checklist: new Array(CHECKLIST_ITEMS.length).fill(false),
-  }]);
-
-  const updateProducto = (i, p) => {
-    const next = [...form.productos];
-    next[i] = p;
-    set("productos", next);
-  };
-
-  const removeProducto = (i) => set("productos", form.productos.filter((_, idx) => idx !== i));
-
-  const handleSave = async () => {
-    if (!form.nombre) { setMsg("⚠️ El nombre del cliente es obligatorio."); return; }
-    setSaving(true);
-    setMsg("Guardando en Notion...");
-
-    const productosTexto = form.productos.map((p, i) => {
-      const unidades = (p.unidades || []).map((u, j) =>
-        `  ${j + 1}. ${u.nombre || "(sin nombre)"} | Talla: ${u.talla || "—"} | Color: ${u.color || "—"} | Personalización: ${u.personalizacion || "—"} | Listo: ${u.listo ? "✅" : "☐"}`
-      ).join("\n");
-      const checklist = CHECKLIST_ITEMS.map((item, j) =>
-        `  - [${p.checklist?.[j] ? "x" : " "}] ${item}`
-      ).join("\n");
-      return `Artículo ${i + 1}: ${p.nombre || "Sin nombre"} | Tipo: ${p.tipo} | Técnica: ${p.tecnica} | Proveedor: ${p.proveedor} | Coste unitario: ${p.costeUnitario}€ | Cantidad: ${p.cantidad}\nUnidades:\n${unidades || "  (ninguna)"}\nChecklist:\n${checklist}`;
-    }).join("\n\n");
-
-    const prompt = `Crea una página nueva en la base de datos de PEDIDOS de Bendito Lab (data_source_id: ${DB_ID}) con estos datos:
-
-Nombre: ${form.nombre}
-Tipo: ${form.tipo}
-Estado: ${form.estado}
-Fecha de entrega: ${form.fechaEntrega || "sin especificar"}
-Total pedido: ${form.totalPedido ? form.totalPedido + "€" : ""}
-Señal: ${form.senal ? form.senal + "€" : ""}
-Pago pendiente: ${form.pagoPendiente ? form.pagoPendiente + "€" : ""}
-Proveedor: ${form.proveedor}
-Notas: ${form.notas}
-
-PRODUCTOS Y CHECKLIST:
-${productosTexto || "Sin productos añadidos"}
-
-Crea la página con todos estos datos incluyendo el contenido de productos y checklist en el cuerpo de la página.`;
-
-    try {
-      const res = await callNotion(prompt);
-      setMsg(res.success !== false ? "✅ Pedido creado en Notion" : "❌ " + res.message);
-      if (res.success !== false) setTimeout(() => onSaved(), 1500);
-    } catch (e) {
-      setMsg("❌ Error de conexión");
-    }
-    setSaving(false);
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Cabecera */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ margin: 0, fontSize: 18, color: COLORS.text }}>Nuevo pedido</h2>
-        <Btn variant="ghost" onClick={onCancel}>← Volver</Btn>
-      </div>
-
-      {/* Datos generales */}
-      <div style={{ background: COLORS.card, borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
-        <span style={{ fontSize: 11, color: COLORS.accent, fontWeight: 700, letterSpacing: "0.08em" }}>DATOS DEL PEDIDO</span>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-          <Input label="Cliente *" value={form.nombre} onChange={(v) => set("nombre", v)} placeholder="Nombre del cliente" />
-          <Select label="Tipo" value={form.tipo} onChange={(v) => set("tipo", v)} options={TIPOS_PEDIDO} />
-          <Select label="Estado" value={form.estado} onChange={(v) => set("estado", v)} options={ESTADOS} />
-          <Input label="Fecha de entrega" value={form.fechaEntrega} onChange={(v) => set("fechaEntrega", v)} type="date" />
-          <Input label="Total pedido (€)" value={form.totalPedido} onChange={(v) => set("totalPedido", v)} type="number" />
-          <Input label="Señal (€)" value={form.senal} onChange={(v) => set("senal", v)} type="number" />
-          <Input label="Pago pendiente (€)" value={form.pagoPendiente} onChange={(v) => set("pagoPendiente", v)} type="number" />
-          <Input label="Proveedor principal" value={form.proveedor} onChange={(v) => set("proveedor", v)} placeholder="ej: 321DTF, Toleshop..." />
-        </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <label style={{ fontSize: 11, color: COLORS.textMuted, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>Observaciones</label>
-          <textarea
-            value={form.notas}
-            onChange={(e) => set("notas", e.target.value)}
-            placeholder="Notas, cambios de última hora..."
-            rows={3}
-            style={{ background: COLORS.bg, border: `1px solid ${COLORS.border}`, borderRadius: 6, color: COLORS.text, padding: "8px 10px", fontSize: 13, fontFamily: "inherit", resize: "vertical", outline: "none" }}
-          />
-        </div>
-      </div>
-
-      {/* Productos */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: COLORS.accent, fontWeight: 700, letterSpacing: "0.08em" }}>ARTÍCULOS ({form.productos.length})</span>
-          <Btn small onClick={addProducto}>+ Añadir artículo</Btn>
-        </div>
-        {form.productos.length === 0 && (
-          <div style={{ color: COLORS.textDim, fontSize: 13, fontStyle: "italic", textAlign: "center", padding: "20px 0" }}>
-            Pulsa "Añadir artículo" para empezar
-          </div>
-        )}
-        {form.productos.map((p, i) => (
-          <ProductoBlock key={i} index={i} producto={p} onChange={(v) => updateProducto(i, v)} onRemove={() => removeProducto(i)} />
-        ))}
-      </div>
-
-      {/* Guardar */}
-      {msg && <div style={{ fontSize: 13, color: msg.startsWith("✅") ? COLORS.green : msg.startsWith("⚠️") ? COLORS.orange : COLORS.red }}>{msg}</div>}
-      <Btn onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "💾 Guardar en Notion"}</Btn>
-    </div>
-  );
-}
-
-// ── Vista: Lista de pedidos ────────────────────────────────────────────────
-
-function ListaPedidos({ onNew, onSelect }) {
-  const [pedidos, setPedidos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  const cargar = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    const prompt = `Consulta la base de datos PEDIDOS de Bendito Lab (data_source_id: ${DB_ID}) y devuelve los últimos 20 pedidos con sus campos: Nombre, Estado, Tipo, Fecha de entrega, Total pedido, Señal, Pago pendiente, Proveedor, Notas. Devuelve el resultado como JSON con campo "data" que contenga un array "pedidos" con objetos que tengan: id, nombre, estado, tipo, fechaEntrega, totalPedido, senal, pagoPendiente, proveedor, notas.`;
-    try {
-      const res = await callNotion(prompt);
-      setPedidos(res.data?.pedidos || []);
-    } catch {
-      setError("No se pudieron cargar los pedidos.");
-    }
-    setLoading(false);
-  }, []);
-
-  useEffect(() => { cargar(); }, [cargar]);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <div>
-          <h2 style={{ margin: 0, fontSize: 18, color: COLORS.text }}>Pedidos</h2>
-          <span style={{ fontSize: 12, color: COLORS.textMuted }}>{pedidos.length} registros</span>
-        </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          <Btn variant="ghost" onClick={cargar} small>↻ Actualizar</Btn>
-          <Btn onClick={onNew}>+ Nuevo pedido</Btn>
-        </div>
-      </div>
-
-      {loading && (
-        <div style={{ textAlign: "center", color: COLORS.textMuted, padding: "40px 0", fontSize: 13 }}>
-          Cargando desde Notion...
-        </div>
-      )}
-      {error && <div style={{ color: COLORS.red, fontSize: 13 }}>{error}</div>}
-
-      {!loading && pedidos.length === 0 && !error && (
-        <div style={{ textAlign: "center", color: COLORS.textDim, padding: "40px 0", fontSize: 13 }}>
-          No hay pedidos. ¡Crea el primero!
-        </div>
-      )}
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {pedidos.map((p, i) => (
-          <div
-            key={i}
-            onClick={() => onSelect(p)}
-            style={{
-              background: COLORS.card,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: 10,
-              padding: "14px 16px",
-              cursor: "pointer",
-              transition: "border-color 0.15s",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.borderColor = COLORS.accent + "66"}
-            onMouseLeave={(e) => e.currentTarget.style.borderColor = COLORS.border}
-          >
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <span style={{ fontWeight: 700, color: COLORS.text, fontSize: 14 }}>{p.nombre}</span>
-              <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                {p.tipo && <Badge label={p.tipo} color={p.tipo === "Evento" ? COLORS.orange : p.tipo === "B2B" ? COLORS.blue : COLORS.textMuted} />}
-                {p.estado && <Badge label={p.estado} color={STATUS_COLORS[p.estado] || COLORS.textMuted} />}
-                {p.fechaEntrega && <span style={{ fontSize: 11, color: COLORS.textMuted }}>📅 {p.fechaEntrega}</span>}
-              </div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              {p.totalPedido && <div style={{ fontWeight: 700, color: COLORS.accent, fontSize: 15 }}>{p.totalPedido}€</div>}
-              {p.pagoPendiente && <div style={{ fontSize: 11, color: COLORS.red }}>Pendiente: {p.pagoPendiente}€</div>}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Vista: Detalle pedido ──────────────────────────────────────────────────
-
-function DetallePedido({ pedido, onBack }) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h2 style={{ margin: 0, fontSize: 18, color: COLORS.text }}>{pedido.nombre}</h2>
-        <Btn variant="ghost" onClick={onBack}>← Volver</Btn>
-      </div>
-
-      <div style={{ background: COLORS.card, borderRadius: 10, padding: 16, display: "flex", flexDirection: "column", gap: 10 }}>
-        <span style={{ fontSize: 11, color: COLORS.accent, fontWeight: 700, letterSpacing: "0.08em" }}>DATOS DEL PEDIDO</span>
-        {[
-          ["Tipo", pedido.tipo],
-          ["Estado", pedido.estado],
-          ["Entrega", pedido.fechaEntrega],
-          ["Total", pedido.totalPedido ? pedido.totalPedido + " €" : "—"],
-          ["Señal", pedido.senal ? pedido.senal + " €" : "—"],
-          ["Pendiente", pedido.pagoPendiente ? pedido.pagoPendiente + " €" : "—"],
-          ["Proveedor", pedido.proveedor],
-        ].map(([k, v]) => v ? (
-          <div key={k} style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-            <span style={{ color: COLORS.textMuted }}>{k}</span>
-            <span style={{ color: COLORS.text, fontWeight: 500 }}>{v}</span>
-          </div>
-        ) : null)}
-        {pedido.notas && (
-          <div style={{ marginTop: 8, fontSize: 13, color: COLORS.textMuted, fontStyle: "italic", borderTop: `1px solid ${COLORS.border}`, paddingTop: 10 }}>
-            {pedido.notas}
-          </div>
-        )}
-      </div>
-
-      <a
-        href={`https://www.notion.so/${pedido.id?.replace(/-/g, "")}`}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ color: COLORS.accent, fontSize: 13, textDecoration: "none" }}
-      >
-        → Abrir en Notion ↗
-      </a>
-    </div>
-  );
-}
-
-// ── App Root ───────────────────────────────────────────────────────────────
-
-export default function App() {
-  const [view, setView] = useState("lista"); // lista | nuevo | detalle
-  const [selected, setSelected] = useState(null);
-
-  return (
-    <div style={{
-      background: COLORS.bg,
-      minHeight: "100vh",
-      fontFamily: "'DM Mono', 'Courier New', monospace",
-      color: COLORS.text,
-    }}>
-      {/* Header */}
-      <div style={{
-        borderBottom: `1px solid ${COLORS.border}`,
-        padding: "14px 24px",
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        background: COLORS.surface,
-      }}>
-        <div style={{
-          width: 28, height: 28, background: COLORS.accent, borderRadius: 6,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 14, fontWeight: 900, color: "#0f0e0d",
-        }}>B</div>
-        <div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: COLORS.text, letterSpacing: "0.05em" }}>BENDITO LAB</div>
-          <div style={{ fontSize: 10, color: COLORS.textMuted, letterSpacing: "0.1em" }}>GESTOR DE PEDIDOS</div>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "24px 16px" }}>
-        {view === "lista" && (
-          <ListaPedidos
-            onNew={() => setView("nuevo")}
-            onSelect={(p) => { setSelected(p); setView("detalle"); }}
-          />
-        )}
-        {view === "nuevo" && (
-          <FormNuevoPedido
-            onSaved={() => setView("lista")}
-            onCancel={() => setView("lista")}
-          />
-        )}
-        {view === "detalle" && selected && (
-          <DetallePedido pedido={selected} onBack={() => setView("lista")} />
-        )}
-      </div>
-    </div>
-  );
-}
+// INIT
+document.getElementById('fab').style.display='none';
+</script>
+</body>
+</html>
