@@ -390,21 +390,47 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
         <div class="topt t-interno" data-t="interno" onclick="selType('interno')">⚙️<br>Interno</div>
       </div>
     </div>
-    <div class="mfield">
-      <label>Cliente / Referencia</label>
-      <input id="m-cliente" placeholder="Nombre, empresa o ref interna">
-    </div>
-    <div class="mfield">
-      <label>Artículo / descripción</label>
-      <input id="m-art" placeholder="Ej: 50 neceseres sublimados">
-    </div>
-    <div class="mfield">
-      <label>Fecha de entrega</label>
-      <input type="date" id="m-fecha">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="mfield" style="grid-column:1/-1">
+        <label>Cliente / Referencia</label>
+        <input id="m-cliente" placeholder="Nombre o empresa">
+      </div>
+      <div class="mfield" style="grid-column:1/-1">
+        <label>Pack / Descripción</label>
+        <input id="m-art" placeholder="Ej: 50 neceseres sublimados">
+      </div>
+      <div class="mfield">
+        <label>Email</label>
+        <input id="m-email" type="email" placeholder="cliente@email.com">
+      </div>
+      <div class="mfield">
+        <label>Teléfono</label>
+        <input id="m-tel" placeholder="600 000 000">
+      </div>
+      <div class="mfield">
+        <label>Fecha del evento / entrega</label>
+        <input type="date" id="m-fecha">
+      </div>
+      <div class="mfield">
+        <label>Invitados / Uds.</label>
+        <input id="m-invitados" type="number" placeholder="0" min="0">
+      </div>
+      <div class="mfield">
+        <label>Importe (€)</label>
+        <input id="m-importe" type="number" placeholder="0.00" step="0.01">
+      </div>
+      <div class="mfield">
+        <label>Estado presupuesto</label>
+        <input id="m-estado-presup" placeholder="Borrador" readonly style="opacity:.7">
+      </div>
+      <div class="mfield" style="grid-column:1/-1">
+        <label>Notas</label>
+        <textarea id="m-notas-presup" rows="2" placeholder="Detalles del presupuesto…" style="width:100%;border:1px solid var(--gray-light);border-radius:7px;padding:9px 12px;font-size:.86rem;font-family:var(--font);color:var(--navy);background:var(--cream);outline:none;resize:vertical"></textarea>
+      </div>
     </div>
     <div class="modal-btns">
       <button class="btn-g" onclick="closeModal()">Cancelar</button>
-      <button class="btn-p" onclick="createPedido()">Crear</button>
+      <button class="btn-p" onclick="createPedido()">Crear pedido</button>
     </div>
   </div>
 </div>
@@ -605,23 +631,29 @@ function selPresup(idx){
   if(idx==='')return;
   const p=_presups[parseInt(idx)];
   if(!p)return;
-  // Rellenar campos del modal
-  document.getElementById('m-cliente').value = p.cliente||p.empresa||'';
-  document.getElementById('m-art').value     = p.pack||p.tipo||'';
-  document.getElementById('m-fecha').value   = p.fecha||'';
+  // Tipo
   const tc   = p.tipocliente||'b2b';
   const tipo = tc==='evento'?'evento':tc==='b2c'?'b2c':tc==='interno'?'interno':'b2b';
   selType(tipo);
-  // Guardar referencia al presupuesto seleccionado para usarlo al crear
+  // Rellenar todos los campos
+  document.getElementById('m-cliente').value        = p.cliente||p.empresa||'';
+  document.getElementById('m-art').value            = p.pack||p.tipo||'';
+  document.getElementById('m-email').value          = p.email||'';
+  document.getElementById('m-tel').value            = p.tel||p.contacto||'';
+  document.getElementById('m-fecha').value          = p.fecha||'';
+  document.getElementById('m-invitados').value      = p.invitados||'';
+  document.getElementById('m-importe').value        = p.importe||'';
+  document.getElementById('m-estado-presup').value  = p.estado||'';
+  document.getElementById('m-notas-presup').value   = p.notas||'';
+  // Guardar referencia completa
   window._selectedPresup = { ...p, _tipo: tipo };
 }
 
 function openNewModal(){
   window._selectedPresup = null;
-  document.getElementById('m-presup').value='';
-  document.getElementById('m-cliente').value='';
-  document.getElementById('m-art').value='';
-  document.getElementById('m-fecha').value='';
+  ['m-presup','m-cliente','m-art','m-email','m-tel','m-fecha','m-invitados','m-importe','m-estado-presup','m-notas-presup'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
   selType('b2b');
   document.getElementById('modal-bd').classList.add('open');
   loadPresupuestos();
@@ -634,18 +666,24 @@ function selType(t){
 function createPedido(){
   const cliente=document.getElementById('m-cliente').value.trim();
   if(!cliente){toast('Añade cliente o referencia');return;}
-  const tipo   = newType;
+  const tipo      = newType;
   const checklist = getChecklistPrecargado(tipo);
-  // Descripción automática desde presupuesto seleccionado
-  const sp     = window._selectedPresup || {};
-  const notas  = sp.notas || '';
+  const sp        = window._selectedPresup || {};
   const p = {
-    id: uid(), tipo, cliente,
-    articulo: document.getElementById('m-art').value.trim(),
-    fecha:    document.getElementById('m-fecha').value,
-    estado:   'pendiente', notas,
+    id:        uid(),
+    tipo,
+    cliente,
+    articulo:  document.getElementById('m-art').value.trim(),
+    email:     document.getElementById('m-email').value.trim(),
+    tel:       document.getElementById('m-tel').value.trim(),
+    fecha:     document.getElementById('m-fecha').value,
+    invitados: document.getElementById('m-invitados').value,
+    importe:   document.getElementById('m-importe').value,
+    notas:     document.getElementById('m-notas-presup').value.trim(),
+    estado:    'pendiente',
     materiales: [], checklist, maleta: [],
-    presupId: sp.id || '',
+    presupId:  sp.id||'',
+    numPresup: sp.numPresup||'',
     ts: Date.now()
   };
   window._selectedPresup = null;
