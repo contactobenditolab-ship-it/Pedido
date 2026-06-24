@@ -555,20 +555,68 @@ function _renderPresupSel(sel){
   });
 }
 
+// ── Checklists precargados por tipo ──
+const CHECKLISTS = {
+  evento: [
+    {tarea:'Arte final — diseño personalizado',       cat:'prep'},
+    {tarea:'Imprimir transfers / cortar vinilo',      cat:'prep'},
+    {tarea:'Preparar artículos (neceseres, totes…)',  cat:'produccion'},
+    {tarea:'Revisión de colores y acabado',           cat:'produccion'},
+    {tarea:'Comprobación de cantidades',              cat:'produccion'},
+    {tarea:'Cargar maleta / montar stand',            cat:'embalaje'},
+    {tarea:'Evento en directo',                       cat:'embalaje'},
+    {tarea:'Post-evento / recogida y cierre',         cat:'acabados'},
+  ],
+  b2b: [
+    {tarea:'Arte final aprobado por cliente',         cat:'prep'},
+    {tarea:'Producción (sublimación / DTF / vinilo / láser)', cat:'produccion'},
+    {tarea:'Revisión de colores y acabado',           cat:'acabados'},
+    {tarea:'Comprobación de cantidades',              cat:'acabados'},
+    {tarea:'Etiquetado individual',                   cat:'acabados'},
+    {tarea:'Embalaje y protección',                   cat:'embalaje'},
+    {tarea:'Preparación envío / albarán',             cat:'embalaje'},
+    {tarea:'Envío / entrega al cliente',              cat:'embalaje'},
+  ],
+  b2c: [
+    {tarea:'Arte final aprobado por cliente',         cat:'prep'},
+    {tarea:'Producción (sublimación / DTF / vinilo / láser)', cat:'produccion'},
+    {tarea:'Revisión de colores y acabado',           cat:'acabados'},
+    {tarea:'Comprobación de cantidades',              cat:'acabados'},
+    {tarea:'Etiquetado individual',                   cat:'acabados'},
+    {tarea:'Embalaje y protección',                   cat:'embalaje'},
+    {tarea:'Preparación envío / albarán',             cat:'embalaje'},
+    {tarea:'Envío / entrega al cliente',              cat:'embalaje'},
+  ],
+  interno: [
+    {tarea:'Definir objetivo del encargo',            cat:'prep'},
+    {tarea:'Producción',                              cat:'produccion'},
+    {tarea:'Control de resultado',                    cat:'acabados'},
+    {tarea:'Almacenar / etiquetar',                   cat:'embalaje'},
+  ],
+};
+
+function getChecklistPrecargado(tipo) {
+  const base = CHECKLISTS[tipo] || CHECKLISTS['b2b'];
+  return base.map(t => ({...t, done: false}));
+}
+
 function selPresup(idx){
   if(idx==='')return;
   const p=_presups[parseInt(idx)];
   if(!p)return;
-  // Campos de Sheets: cliente, tipo, pack, fecha, tipocliente
-  document.getElementById('m-cliente').value=p.cliente||p.empresa||'';
-  document.getElementById('m-art').value=p.pack||p.tipo||'';
-  document.getElementById('m-fecha').value=p.fecha||'';
-  const tc=p.tipocliente||'b2b';
-  const tipo=tc==='evento'?'evento':tc==='b2c'?'b2c':tc==='interno'?'interno':'b2b';
+  // Rellenar campos del modal
+  document.getElementById('m-cliente').value = p.cliente||p.empresa||'';
+  document.getElementById('m-art').value     = p.pack||p.tipo||'';
+  document.getElementById('m-fecha').value   = p.fecha||'';
+  const tc   = p.tipocliente||'b2b';
+  const tipo = tc==='evento'?'evento':tc==='b2c'?'b2c':tc==='interno'?'interno':'b2b';
   selType(tipo);
+  // Guardar referencia al presupuesto seleccionado para usarlo al crear
+  window._selectedPresup = { ...p, _tipo: tipo };
 }
 
 function openNewModal(){
+  window._selectedPresup = null;
   document.getElementById('m-presup').value='';
   document.getElementById('m-cliente').value='';
   document.getElementById('m-art').value='';
@@ -577,7 +625,7 @@ function openNewModal(){
   document.getElementById('modal-bd').classList.add('open');
   loadPresupuestos();
 }
-function closeModal(){document.getElementById('modal-bd').classList.remove('open');}
+function closeModal(){document.getElementById('modal-bd').classList.remove('open');window._selectedPresup=null;}
 function selType(t){
   newType=t;
   document.querySelectorAll('.topt').forEach(o=>o.classList.toggle('sel',o.dataset.t===t));
@@ -585,12 +633,24 @@ function selType(t){
 function createPedido(){
   const cliente=document.getElementById('m-cliente').value.trim();
   if(!cliente){toast('Añade cliente o referencia');return;}
-  const p={id:uid(),tipo:newType,cliente,articulo:document.getElementById('m-art').value.trim(),
-    fecha:document.getElementById('m-fecha').value,estado:'pendiente',notas:'',
-    materiales:[],checklist:[],maleta:[],ts:Date.now()};
+  const tipo   = newType;
+  const checklist = getChecklistPrecargado(tipo);
+  // Descripción automática desde presupuesto seleccionado
+  const sp     = window._selectedPresup || {};
+  const notas  = sp.notas || '';
+  const p = {
+    id: uid(), tipo, cliente,
+    articulo: document.getElementById('m-art').value.trim(),
+    fecha:    document.getElementById('m-fecha').value,
+    estado:   'pendiente', notas,
+    materiales: [], checklist, maleta: [],
+    presupId: sp.id || '',
+    ts: Date.now()
+  };
+  window._selectedPresup = null;
   state.pedidos.unshift(p);
   save();render();closeModal();
-  toast('Pedido creado ✓');
+  toast('Pedido creado con checklist ✓');
   setTimeout(()=>openDrawer(p.id),200);
 }
 
