@@ -416,7 +416,7 @@ let filter = 'all', sort = 'fecha';
 let activeId = null, newType = 'b2b';
 let pinBuf = '';
 
-const SHEETS_URL='https://script.google.com/macros/s/AKfycby9KCcgtiYiXaea5RUU3Gbex-xHWlpEPIBDyJNFZHbo2QCDLX9GzOMuTLE3XfpVrtis/exec';
+const SHEETS_URL='https://script.google.com/macros/s/AKfycbwHBQ6eScC1jM5-HyIV_9P2emLuokzGqf3LAUSg98rZos_Asz6jLl5-XmD1sikAuBjz/exec';
 function load(){try{const s=localStorage.getItem('bl3');if(s)state=JSON.parse(s);}catch(e){}}
 function save(){localStorage.setItem('bl3',JSON.stringify(state));syncSheets();}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5);}
