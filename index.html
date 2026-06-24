@@ -516,45 +516,38 @@ function fmtF(f){if(!f)return'';const[y,m,d]=f.split('-');return`${d}/${m}/${y}`
 // Cache de presupuestos cargados
 let _presups=[];
 
-// URLs de la API del panel Bendito Lab (Notion)
-const PANEL_URL = 'https://panel-bendito-lab.vercel.app';
-
 async function loadPresupuestos(){
   const sel=document.getElementById('m-presup');
   const lbl=document.getElementById('m-presup-loading');
   if(_presups.length){_renderPresupSel(sel);return;}
   lbl.style.display='block';
   try{
-    // Cargar eventos Dilo Bonito + pedidos B2B en paralelo
-    const [resEv, resPed] = await Promise.allSettled([
-      fetch(PANEL_URL+'/api/notion/presupuestos').then(r=>r.json()),
-      fetch(PANEL_URL+'/api/notion/pedidos').then(r=>r.json())
-    ]);
-    let items=[];
-    if(resEv.status==='fulfilled'&&Array.isArray(resEv.value)){
-      items=items.concat(resEv.value.map(p=>({...p,_src:'evento',_tipoLabel:'Evento Dilo Bonito'})));
+    const r=await fetch(SHEETS_URL+'?tabla=presupuestos');
+    const data=await r.json();
+    if(data.ok&&Array.isArray(data.data)){
+      const excluir=['cancelado','rechazado','Cancelado','Rechazado'];
+      _presups=data.data.filter(p=>!excluir.includes(p.estado));
+      _presups.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+      _renderPresupSel(sel);
+    } else {
+      sel.innerHTML='<option value="">Sin presupuestos en Sheets aún</option>';
     }
-    if(resPed.status==='fulfilled'&&Array.isArray(resPed.value)){
-      items=items.concat(resPed.value.map(p=>({...p,_src:'pedido',_tipoLabel:'B2B'})));
-    }
-    // Filtrar cancelados/rechazados
-    const excluir=['cancelado','rechazado','CANCELADO','Cancelado','Rechazado'];
-    _presups=items.filter(p=>!excluir.includes(p.estado));
-    // Ordenar: primero los más recientes por fecha
-    _presups.sort((a,b)=>(b.fecha||b.createdAt||'').localeCompare(a.fecha||a.createdAt||''));
-    _renderPresupSel(sel);
-  }catch(e){console.warn('No se pudieron cargar presupuestos',e);}
+  }catch(e){
+    console.warn('Error cargando presupuestos',e);
+    sel.innerHTML='<option value="">Error al cargar</option>';
+  }
   finally{lbl.style.display='none';}
 }
 
 function _renderPresupSel(sel){
-  sel.innerHTML='<option value="">— Seleccionar presupuesto ('+_presups.length+') —</option>';
+  sel.innerHTML='<option value="">— '+_presups.length+' presupuestos disponibles —</option>';
   _presups.forEach((p,i)=>{
-    const nombre = p.nombre||p.cliente||p.empresa||'Sin nombre';
-    const tipo   = p._tipoLabel||p.tipo||'';
-    const fecha  = p.fecha ? p.fecha.slice(0,10) : '';
-    const estado = p.estado||'';
-    const label  = [nombre, tipo, fecha, estado].filter(Boolean).join(' · ');
+    const cliente = p.cliente||p.empresa||'Sin nombre';
+    const tipo    = p.tipocliente==='evento'?'🎉 Evento':p.tipocliente==='b2c'?'👤 B2C':'🏢 B2B';
+    const pack    = p.pack||p.tipo||'';
+    const fecha   = p.fecha||'';
+    const estado  = p.estado||'';
+    const label   = [tipo, cliente, pack, fecha, estado].filter(Boolean).join(' · ');
     const opt=document.createElement('option');
     opt.value=i;
     opt.textContent=label;
@@ -566,16 +559,13 @@ function selPresup(idx){
   if(idx==='')return;
   const p=_presups[parseInt(idx)];
   if(!p)return;
-  // Campos de Notion eventos: nombre=cliente, tipo=tipo evento, fecha=fecha evento
-  // Campos de Notion pedidos B2B: nombre=nombre, estado=estado
-  const cliente = p.nombre||p.cliente||p.empresa||'';
-  const articulo = p.tipo||p.pack||p.nombre||'';
-  const fecha = p.fecha||'';
-  const tipoSrc = p._src==='evento'?'evento':'b2b';
-  document.getElementById('m-cliente').value=cliente;
-  document.getElementById('m-art').value=articulo;
-  document.getElementById('m-fecha').value=fecha;
-  selType(tipoSrc);
+  // Campos de Sheets: cliente, tipo, pack, fecha, tipocliente
+  document.getElementById('m-cliente').value=p.cliente||p.empresa||'';
+  document.getElementById('m-art').value=p.pack||p.tipo||'';
+  document.getElementById('m-fecha').value=p.fecha||'';
+  const tc=p.tipocliente||'b2b';
+  const tipo=tc==='evento'?'evento':tc==='b2c'?'b2c':tc==='interno'?'interno':'b2b';
+  selType(tipo);
 }
 
 function openNewModal(){
