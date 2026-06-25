@@ -444,7 +444,7 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
 <div class="toast" id="toast"></div>
 
 <script>
-const PIN_DEFAULT = '1234';
+const PIN_DEFAULT = '2305';
 const ESTADOS = [
   {id:'pendiente',  label:'Pendiente',       cls:'bp',  color:'var(--amber)',  bg:'var(--amber-bg)'},
   {id:'produccion', label:'En producción',   cls:'bpr', color:'var(--blue)',   bg:'var(--blue-bg)'},
@@ -555,7 +555,8 @@ async function loadPresupuestos(){
   if(_presups.length){_renderPresupSel(sel);return;}
   lbl.style.display='block';
   try{
-    const r=await fetch(SHEETS_URL+'?tabla=presupuestos');
+    const proxyUrl='/api/proxy?url='+encodeURIComponent(SHEETS_URL+'?tabla=presupuestos');
+    const r=await fetch(proxyUrl);
     const data=await r.json();
     if(data.ok&&Array.isArray(data.data)){
       const excluir=['cancelado','rechazado','Cancelado','Rechazado'];
