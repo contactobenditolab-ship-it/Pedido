@@ -245,7 +245,7 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
 
 /* desktop nav fix */
 @media(min-width:601px){
-  #app { display:flex !important; }
+  #app.unlocked { display:flex !important; }
   .hdr { position:sticky; top:0; }
 }
 
@@ -561,6 +561,7 @@ function checkPin(){
   if(pinBuf===ok){
     document.getElementById('pin-screen').style.display='none';
     const appEl=document.getElementById('app');
+    appEl.classList.add('unlocked');
     appEl.style.setProperty('display','flex','important');
     document.getElementById('fab').style.display='flex';
     load();render();
@@ -573,6 +574,7 @@ function checkPin(){
 function lockApp(){
   pinBuf='';ud();
   const app=document.getElementById('app');
+  app.classList.remove('unlocked');
   app.style.display='none';
   app.style.setProperty('display','none','important');
   document.getElementById('pin-screen').style.display='flex';
@@ -581,6 +583,7 @@ function lockApp(){
 
 // FILTER / SORT
 function setFilter(f){
+  closeDrawer(); // cerrar drawer al cambiar filtro
   filter=f;
   document.querySelectorAll('.filter-chip').forEach(c=>c.classList.toggle('active',c.dataset.f===f));
   render();
