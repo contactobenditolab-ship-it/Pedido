@@ -657,7 +657,16 @@ function render(){
   }).join('');
 }
 
-function fmtF(f){if(!f)return'';const[y,m,d]=f.split('-');return`${d}/${m}/${y}`;}
+function fmtF(f){
+  if(!f)return'';
+  // Intentar YYYY-MM-DD
+  const iso=f.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if(iso)return`${iso[3]}-${iso[2]}-${iso[1]}`;
+  // Intentar DD/MM/YYYY o DD-MM-YYYY ya formateado
+  const dmy=f.match(/^(\d{2})[\/\-](\d{2})[\/\-](\d{4})$/);
+  if(dmy)return`${dmy[1]}-${dmy[2]}-${dmy[3]}`;
+  return f; // devolver tal cual si no reconoce el formato
+}
 
 // NEW PEDIDO
 // Cache de presupuestos cargados
