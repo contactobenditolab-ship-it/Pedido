@@ -782,7 +782,10 @@ function selPresup(idx){
   document.getElementById('m-art').value            = p.pack||p.tipo||'';
   document.getElementById('m-email').value          = p.email||'';
   document.getElementById('m-tel').value            = p.tel||'';
-  document.getElementById('m-fecha').value          = p.fecha||'';
+  // Normalizar fecha a YYYY-MM-DD (puede llegar como Date object o string)
+  const _fecha = p.fecha ? (p.fecha instanceof Date ? p.fecha : new Date(p.fecha)) : null;
+  const _fechaStr = _fecha && !isNaN(_fecha) ? _fecha.toISOString().split('T')[0] : '';
+  document.getElementById('m-fecha').value          = _fechaStr;
   document.getElementById('m-invitados').value      = p.invitados||'';
   document.getElementById('m-importe').value        = p.importe||'';
   document.getElementById('m-estado-presup').value  = p.estado||'';
