@@ -1253,15 +1253,21 @@ async function syncSheets(){
     const maleta = (state.pedidos||[]).flatMap(p=>
       (p.maleta||[]).map((m,i)=>({id:p.id+'_mal_'+i, pedidoId:p.id, item:m.item||'', qty:String(m.qty||1), checked:m.checked?'1':'0'}))
     );
-    await fetch(url,{
-      method:'POST',
-      mode:'no-cors',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({accion:'guardarProduccion', datos:{pedidos,materiales,checklist,maleta}})
-    });
-    document.getElementById('sync-dot').className='sync-dot ok';
-    setTimeout(()=>document.getElementById('sync-dot').className='sync-dot',3000);
-  }catch(e){document.getElementById('sync-dot').className='sync-dot err';}
+    // GET con payload — único patrón que funciona con Apps Script sin CORS bloqueado
+    const payload=JSON.stringify({accion:'guardarProduccion', datos:{pedidos,materiales,checklist,maleta}});
+    const r=await fetch(url+'?payload='+encodeURIComponent(payload)+'&t='+Date.now());
+    const data=await r.json();
+    if(data.ok){
+      document.getElementById('sync-dot').className='sync-dot ok';
+      setTimeout(()=>document.getElementById('sync-dot').className='sync-dot',3000);
+    } else {
+      console.warn('Sync error:', data);
+      document.getElementById('sync-dot').className='sync-dot err';
+    }
+  }catch(e){
+    console.warn('Sync failed:',e);
+    document.getElementById('sync-dot').className='sync-dot err';
+  }
 }
 
 // TOAST
