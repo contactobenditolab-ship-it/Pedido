@@ -1235,13 +1235,13 @@ async function syncSheets(){
       articulo:p.articulo||'', estado:p.estado||'pendiente', notas:p.notas||''
     }));
     const materiales = (state.pedidos||[]).flatMap(p=>
-      (p.materiales||[]).map(m=>({id:m.nombre+p.id, pedidoId:p.id, nombre:m.nombre||'', proveedor:m.proveedor||'', qty:String(m.qty||1)}))
+      (p.materiales||[]).map((m,i)=>({id:p.id+'_mat_'+i, pedidoId:p.id, nombre:m.nombre||'', proveedor:m.proveedor||'', qty:String(m.qty||1)}))
     );
     const checklist = (state.pedidos||[]).flatMap(p=>
-      (p.checklist||[]).map(c=>({id:c.tarea+p.id, pedidoId:p.id, tarea:c.tarea||'', cat:c.cat||'', done:c.done?'1':'0'}))
+      (p.checklist||[]).map((c,i)=>({id:p.id+'_chk_'+i, pedidoId:p.id, tarea:c.tarea||'', cat:c.cat||'', done:c.done?'1':'0'}))
     );
     const maleta = (state.pedidos||[]).flatMap(p=>
-      (p.maleta||[]).map(m=>({id:m.item+p.id, pedidoId:p.id, item:m.item||'', qty:String(m.qty||1), checked:m.checked?'1':'0'}))
+      (p.maleta||[]).map((m,i)=>({id:p.id+'_mal_'+i, pedidoId:p.id, item:m.item||'', qty:String(m.qty||1), checked:m.checked?'1':'0'}))
     );
     await fetch(url,{
       method:'POST',
