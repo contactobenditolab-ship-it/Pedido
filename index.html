@@ -249,6 +249,28 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
   .hdr { position:sticky; top:0; }
 }
 
+/* ── LAYOUT DESKTOP ───────────────────────────────────── */
+@media(min-width:900px){
+  /* App en dos columnas: lista a la izquierda, drawer a la derecha */
+  #app { flex-direction:column; }
+  .hdr { max-width:100%; }
+  .app-main { max-width:100%; padding:20px 32px 40px; display:grid; grid-template-columns:1fr 1fr; gap:24px; align-items:start; }
+  .list-meta { grid-column:1/-1; }
+  #ped-list { grid-column:1/-1; display:grid; grid-template-columns:repeat(auto-fill,minmax(320px,1fr)); gap:12px; }
+  .ped-card { margin-bottom:0; }
+
+  /* Drawer como panel lateral fijo en desktop */
+  .drawer-bd { align-items:stretch; justify-content:flex-end; padding:0; }
+  .drawer { border-radius:0; max-width:520px; width:100%; height:100%; max-height:100vh; animation:none; box-shadow:-4px 0 24px rgba(13,27,62,.15); }
+  .drawer-handle { display:none; }
+
+  /* Modal centrado y más amplio en desktop */
+  .modal { max-width:560px; max-height:88vh; overflow-y:auto; }
+  
+  /* FAB en posición mejor para desktop */
+  .fab { bottom:32px; right:32px; width:58px; height:58px; font-size:1.8rem; }
+}
+
 </style>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon-pedido-180.png">
@@ -565,6 +587,8 @@ function checkPin(){
     appEl.style.setProperty('display','flex','important');
     document.getElementById('fab').style.display='flex';
     load();render();
+    // Intentar sincronizar pedidos desde Sheets
+    syncFromSheets().then(()=>render()).catch(()=>{});
   } else {
     document.getElementById('pin-err').classList.add('show');
     for(let i=0;i<4;i++)document.getElementById('d'+i).classList.add('filled');
@@ -645,8 +669,9 @@ async function loadPresupuestos(){
   if(_presups.length){_renderPresupSel(sel);return;}
   lbl.style.display='block';
   try{
-    const proxyUrl='/api/proxy?url='+encodeURIComponent(SHEETS_URL+'?tabla=presupuestos');
-    const r=await fetch(proxyUrl);
+    // GET directo al Apps Script con callback JSONP no disponible, usamos el parámetro GET
+    const directUrl=SHEETS_URL+'?accion=obtenerPresupuestos&t='+Date.now();
+    const r=await fetch(directUrl);
     const data=await r.json();
     if(data.ok&&Array.isArray(data.data)){
       const excluir=['cancelado','rechazado','Cancelado','Rechazado'];
@@ -654,11 +679,21 @@ async function loadPresupuestos(){
       _presups.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
       _renderPresupSel(sel);
     } else {
-      sel.innerHTML='<option value="">Sin presupuestos en Sheets aún</option>';
+      // Intentar también con tabla=presupuestos por compatibilidad
+      const r2=await fetch(SHEETS_URL+'?tabla=presupuestos&t='+Date.now());
+      const data2=await r2.json();
+      if(data2.ok&&Array.isArray(data2.data)){
+        const excluir=['cancelado','rechazado','Cancelado','Rechazado'];
+        _presups=data2.data.filter(p=>!excluir.includes(p.estado));
+        _presups.sort((a,b)=>(b.fecha||'').localeCompare(a.fecha||''));
+        _renderPresupSel(sel);
+      } else {
+        sel.innerHTML='<option value="">Sin presupuestos disponibles</option>';
+      }
     }
   }catch(e){
     console.warn('Error cargando presupuestos',e);
-    sel.innerHTML='<option value="">Error al cargar</option>';
+    sel.innerHTML='<option value="">Error al cargar — revisa conexión</option>';
   }
   finally{lbl.style.display='none';}
 }
@@ -736,7 +771,7 @@ function selPresup(idx){
   document.getElementById('m-cliente').value        = p.cliente||p.empresa||'';
   document.getElementById('m-art').value            = p.pack||p.tipo||'';
   document.getElementById('m-email').value          = p.email||'';
-  document.getElementById('m-tel').value            = p.tel||p.contacto||'';
+  document.getElementById('m-tel').value            = p.tel||'';
   document.getElementById('m-fecha').value          = p.fecha||'';
   document.getElementById('m-invitados').value      = p.invitados||'';
   document.getElementById('m-importe').value        = p.importe||'';
@@ -1148,6 +1183,46 @@ function togArteItemProd(i){
 // (ya resuelto con CSS pero también forzamos display correcto en dTab)
 
 // SYNC
+async function syncFromSheets(){
+  const url=SHEETS_URL;
+  if(!url)return;
+  document.getElementById('sync-dot').className='sync-dot spin';
+  try{
+    const r=await fetch(url+'?accion=obtenerPedidosProduccion&t='+Date.now());
+    const data=await r.json();
+    if(data.ok&&Array.isArray(data.data)&&data.data.length){
+      // Mezclar: mantener datos locales (materiales, checklist, maleta) y actualizar estado desde Sheets
+      const remoto=data.data;
+      const local=state.pedidos||[];
+      const localMap={};
+      local.forEach(p=>{localMap[p.id]=p;});
+      remoto.forEach(rp=>{
+        if(localMap[rp.id]){
+          // Actualizar solo campos básicos del servidor, mantener listas locales
+          localMap[rp.id].estado=rp.estado||localMap[rp.id].estado;
+          localMap[rp.id].cliente=rp.cliente||localMap[rp.id].cliente;
+          localMap[rp.id].articulo=rp.articulo||localMap[rp.id].articulo;
+          localMap[rp.id].notas=rp.notas||localMap[rp.id].notas;
+        } else {
+          // Pedido nuevo desde Sheets que no tenemos local
+          state.pedidos.push({
+            id:rp.id, tipo:rp.tipo||'b2b', cliente:rp.cliente||'',
+            articulo:rp.articulo||'', estado:rp.estado||'pendiente',
+            notas:rp.notas||'', fecha:rp.fecha||'',
+            materiales:[], checklist:[], maleta:[], ts:Date.now()
+          });
+        }
+      });
+      localStorage.setItem('bl3',JSON.stringify(state));
+    }
+    document.getElementById('sync-dot').className='sync-dot ok';
+    setTimeout(()=>document.getElementById('sync-dot').className='sync-dot',3000);
+  }catch(e){
+    // Si falla la sincronización remota, seguir con datos locales
+    document.getElementById('sync-dot').className='sync-dot err';
+    setTimeout(()=>document.getElementById('sync-dot').className='sync-dot',3000);
+  }
+}
 
 async function syncSheets(){
   const url=SHEETS_URL;
