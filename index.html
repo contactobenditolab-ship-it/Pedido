@@ -200,6 +200,55 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
   .igrid{grid-template-columns:1fr;}
   .sgrid{grid-template-columns:1fr;}
 }
+
+/* LISTA DE COMPRA */
+.compra-view { margin-bottom: 16px; }
+.compra-toggle { display:flex; gap:6px; margin-bottom:14px; }
+.ctog { flex:1; padding:8px; border-radius:8px; border:2px solid var(--gray-light); background:var(--cream); font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.04em; cursor:pointer; text-align:center; color:var(--gray); transition:all .15s; }
+.ctog.active { border-color:var(--navy); background:var(--navy); color:var(--white); }
+.compra-section { margin-bottom:18px; }
+.compra-section-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:8px; padding-bottom:6px; border-bottom:2px solid var(--navy); }
+.compra-section-title { font-size:.82rem; font-weight:700; color:var(--navy); }
+.compra-section-meta { font-size:.72rem; color:var(--gray); }
+.compra-item { display:flex; align-items:flex-start; gap:10px; padding:10px 12px; background:var(--white); border-radius:8px; margin-bottom:6px; box-shadow:var(--shadow); }
+.compra-item-body { flex:1; min-width:0; }
+.compra-item-title { font-size:.86rem; font-weight:600; }
+.compra-item-sub { font-size:.72rem; color:var(--gray); margin-top:2px; line-height:1.4; }
+.compra-item-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:5px; }
+.ctag { font-size:.65rem; padding:2px 7px; border-radius:10px; font-weight:600; }
+.ctag-pers { background:var(--blue-bg); color:var(--blue); }
+.ctag-medida { background:var(--purple-bg); color:var(--purple); }
+.ctag-qty { background:var(--green-bg); color:var(--green); }
+.compra-imgs { background:var(--amber-bg); border-radius:8px; padding:10px 14px; margin-bottom:14px; }
+.compra-imgs-title { font-size:.75rem; font-weight:700; color:var(--amber); margin-bottom:6px; text-transform:uppercase; letter-spacing:.04em; }
+.compra-imgs-list { font-size:.8rem; color:var(--navy); line-height:1.6; }
+
+/* ARTE realizado badge */
+.arte-badge { display:inline-flex; align-items:center; gap:4px; font-size:.68rem; font-weight:700; padding:3px 8px; border-radius:10px; cursor:pointer; border:none; transition:all .15s; text-transform:uppercase; letter-spacing:.04em; }
+.arte-badge.ok { background:var(--green-bg); color:var(--green); }
+.arte-badge.pend { background:var(--amber-bg); color:var(--amber); }
+.arte-global { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:var(--cream); border-radius:8px; margin-bottom:12px; }
+.arte-global-label { font-size:.78rem; color:var(--navy); font-weight:600; }
+
+/* PERSONALIZACIÓN en materiales */
+.mat-pers-row { display:flex; gap:6px; margin-top:6px; flex-wrap:wrap; }
+.mat-pers-inp { flex:1; min-width:80px; border:1px solid var(--gray-light); border-radius:6px; padding:6px 9px; font-size:.78rem; font-family:var(--font); color:var(--navy); background:var(--white); outline:none; }
+.mat-pers-inp:focus { border-color:var(--navy-soft); }
+
+/* PRODUCCIÓN tab info extra */
+.prod-info-block { background:var(--white); border-radius:8px; padding:12px 14px; margin-bottom:10px; box-shadow:var(--shadow); }
+.prod-info-block h4 { font-size:.75rem; text-transform:uppercase; letter-spacing:.06em; color:var(--gray); margin-bottom:8px; }
+.prod-info-row { display:flex; justify-content:space-between; font-size:.82rem; padding:4px 0; border-bottom:1px solid var(--gray-light); }
+.prod-info-row:last-child { border-bottom:none; }
+.prod-info-label { color:var(--gray); }
+.prod-info-value { font-weight:600; color:var(--navy); text-align:right; max-width:60%; }
+
+/* desktop nav fix */
+@media(min-width:601px){
+  #app { display:flex !important; }
+  .hdr { position:sticky; top:0; }
+}
+
 </style>
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icon-pedido-180.png">
@@ -279,11 +328,13 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
       <button class="drawer-close" onclick="closeDrawer()">✕</button>
     </div>
     <div class="drawer-body">
-      <div class="dtabs">
-        <div class="dtab active" data-dt="info" onclick="dTab('info')">Info</div>
-        <div class="dtab" data-dt="mat" onclick="dTab('mat')">Materiales</div>
-        <div class="dtab" data-dt="chk" onclick="dTab('chk')">Checklist</div>
-        <div class="dtab" data-dt="mal" onclick="dTab('mal')">Maleta</div>
+      <div class="dtabs" style="overflow-x:auto;scrollbar-width:none;">
+        <div class="dtab active" data-dt="info" onclick="dTab('info')" style="flex:none;padding:9px 10px;">Info</div>
+        <div class="dtab" data-dt="mat" onclick="dTab('mat')" style="flex:none;padding:9px 10px;">Materiales</div>
+        <div class="dtab" data-dt="chk" onclick="dTab('chk')" style="flex:none;padding:9px 10px;">Checklist</div>
+        <div class="dtab" data-dt="mal" onclick="dTab('mal')" style="flex:none;padding:9px 10px;">Maleta</div>
+        <div class="dtab" data-dt="compra" onclick="dTab('compra')" style="flex:none;padding:9px 10px;">🛒 Compra</div>
+        <div class="dtab" data-dt="prod" onclick="dTab('prod')" style="flex:none;padding:9px 10px;">⚙️ Prod</div>
       </div>
 
       <!-- INFO -->
@@ -325,12 +376,30 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
 
       <!-- MATERIALES -->
       <div class="dsec" id="dsec-mat">
+        <div class="arte-global">
+          <span class="arte-global-label">🎨 Arte del pedido</span>
+          <button class="arte-badge pend" id="arte-global-btn" onclick="togArteGlobal()">Pendiente</button>
+        </div>
         <div class="item-list" id="d-mat-list"></div>
+        <div style="margin-top:10px;font-size:.72rem;color:var(--gray);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;font-weight:600;">Añadir material</div>
         <div class="mini-add">
           <input class="mi" id="d-mn" placeholder="Artículo (ej: transfer A4)" style="flex:2">
           <input class="mi" id="d-mp" placeholder="Proveedor" style="max-width:110px">
           <input class="mi" id="d-mq" placeholder="Cant" type="number" min="1" style="max-width:62px">
           <button class="mib" onclick="addMat()">+</button>
+        </div>
+        <div class="mat-pers-row">
+          <select class="mat-pers-inp" id="d-mpers" style="max-width:130px">
+            <option value="">Personalización</option>
+            <option value="DTF textil">DTF textil</option>
+            <option value="Sublimación">Sublimación</option>
+            <option value="Vinilo de corte">Vinilo de corte</option>
+            <option value="Láser">Láser</option>
+            <option value="Bordado">Bordado</option>
+            <option value="DTF UV">DTF UV</option>
+            <option value="Sin personalización">Sin personalización</option>
+          </select>
+          <input class="mat-pers-inp" id="d-mmedida" placeholder="Medidas (ej: 8x5cm)" style="max-width:110px">
         </div>
       </div>
 
@@ -366,6 +435,21 @@ body{font-family:var(--font);background:var(--cream);color:var(--navy);min-heigh
           <input class="mi" id="d-miq" placeholder="Cant" type="number" min="1" style="max-width:62px">
           <button class="mib" onclick="addMal()">+</button>
         </div>
+      </div>
+
+      <!-- COMPRA -->
+      <div class="dsec" id="dsec-compra">
+        <div class="compra-toggle">
+          <button class="ctog active" id="ctog-presup" onclick="setCompraView('presup')">Por presupuesto</button>
+          <button class="ctog" id="ctog-art" onclick="setCompraView('art')">Por artículo</button>
+        </div>
+        <div id="compra-imgs-summary"></div>
+        <div id="compra-list"></div>
+      </div>
+
+      <!-- PRODUCCIÓN EXTRA -->
+      <div class="dsec" id="dsec-prod">
+        <div id="prod-summary"></div>
       </div>
     </div>
   </div>
@@ -476,7 +560,8 @@ function checkPin(){
   const ok=localStorage.getItem('bl3_pin')||PIN_DEFAULT;
   if(pinBuf===ok){
     document.getElementById('pin-screen').style.display='none';
-    document.getElementById('app').style.display='flex';
+    const appEl=document.getElementById('app');
+    appEl.style.setProperty('display','flex','important');
     document.getElementById('fab').style.display='flex';
     load();render();
   } else {
@@ -487,7 +572,9 @@ function checkPin(){
 }
 function lockApp(){
   pinBuf='';ud();
-  document.getElementById('app').style.display='none';
+  const app=document.getElementById('app');
+  app.style.display='none';
+  app.style.setProperty('display','none','important');
   document.getElementById('pin-screen').style.display='flex';
   document.getElementById('fab').style.display='none';
 }
@@ -719,6 +806,8 @@ function closeDrawer(){document.getElementById('drawer-bd').classList.remove('op
 function dTab(t){
   document.querySelectorAll('.dtab').forEach(d=>d.classList.toggle('active',d.dataset.dt===t));
   document.querySelectorAll('.dsec').forEach(s=>s.classList.toggle('active',s.id==='dsec-'+t));
+  if(t==='compra')renderCompra();
+  if(t==='prod')renderProd();
 }
 function renderSGrid(cur){
   document.getElementById('sgrid').innerHTML=ESTADOS.map(e=>`
@@ -749,28 +838,55 @@ function deletePedido(){
 function renderMat(){
   const p=ged(activeId);if(!p)return;
   const arr=p.materiales||[];
+  // Arte global
+  const arteBtn=document.getElementById('arte-global-btn');
+  if(arteBtn){
+    const ok=p.arteOk===true;
+    arteBtn.className='arte-badge '+(ok?'ok':'pend');
+    arteBtn.textContent=ok?'✓ Arte listo':'Pendiente';
+  }
   const c=document.getElementById('d-mat-list');
-  if(!arr.length){c.innerHTML='<div style="font-size:.8rem;color:var(--gray);padding:6px 0">Sin materiales.</div>';return;}
-  c.innerHTML=arr.map((m,i)=>`
-    <div class="irow">
-      <div class="irow-body">
-        <div class="irow-title">${esc(m.nombre)}</div>
-        ${m.proveedor?`<div class="irow-meta">${esc(m.proveedor)}</div>`:''}
+  if(!arr.length){c.innerHTML='<div style="font-size:.8rem;color:var(--gray);padding:6px 0">Sin materiales. Añade artículos abajo.</div>';return;}
+  c.innerHTML=arr.map((m,i)=>{
+    const arteOk=m.arteOk===true;
+    return `<div class="irow" style="flex-direction:column;align-items:stretch;gap:6px;">
+      <div style="display:flex;align-items:center;gap:9px;">
+        <div class="irow-body">
+          <div class="irow-title">${esc(m.nombre)}</div>
+          ${m.proveedor?`<div class="irow-meta">📦 ${esc(m.proveedor)}</div>`:''}
+        </div>
+        <div class="qtyc">
+          <button class="qtyb" onclick="chgMat(${i},-1)">−</button>
+          <span class="qtyv">${m.qty}</span>
+          <button class="qtyb" onclick="chgMat(${i},1)">+</button>
+        </div>
+        <button class="rmb" onclick="rmMat(${i})">🗑</button>
       </div>
-      <div class="qtyc">
-        <button class="qtyb" onclick="chgMat(${i},-1)">−</button>
-        <span class="qtyv">${m.qty}</span>
-        <button class="qtyb" onclick="chgMat(${i},1)">+</button>
+      <div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center;padding:0 2px;">
+        <select class="mat-pers-inp" style="font-size:.72rem;padding:4px 7px;" onchange="updMat(${i},'pers',this.value)">
+          <option value="">Personalización…</option>
+          ${['DTF textil','Sublimación','Vinilo de corte','Láser','Bordado','DTF UV','Sin personalización'].map(v=>`<option value="${v}" ${m.pers===v?'selected':''}>${v}</option>`).join('')}
+        </select>
+        <input class="mat-pers-inp" style="font-size:.72rem;padding:4px 7px;max-width:110px;" placeholder="Medidas (8x5cm)" value="${esc(m.medida||'')}" onchange="updMat(${i},'medida',this.value)">
+        <button class="arte-badge ${arteOk?'ok':'pend'}" onclick="togArteItem(${i})">${arteOk?'✓ Arte ok':'🎨 Arte pend.'}</button>
       </div>
-      <button class="rmb" onclick="rmMat(${i})">🗑</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function addMat(){
   const n=document.getElementById('d-mn').value.trim();if(!n)return;
   const p=ged(activeId);if(!p)return;
   p.materiales=p.materiales||[];
-  p.materiales.push({nombre:n,proveedor:document.getElementById('d-mp').value.trim(),qty:parseInt(document.getElementById('d-mq').value)||1});
+  p.materiales.push({
+    nombre:n,
+    proveedor:document.getElementById('d-mp').value.trim(),
+    qty:parseInt(document.getElementById('d-mq').value)||1,
+    pers:document.getElementById('d-mpers').value,
+    medida:document.getElementById('d-mmedida').value.trim(),
+    arteOk:false
+  });
   document.getElementById('d-mn').value='';document.getElementById('d-mp').value='';document.getElementById('d-mq').value='';
+  document.getElementById('d-mpers').value='';document.getElementById('d-mmedida').value='';
   save();renderMat();
 }
 function chgMat(i,d){const p=ged(activeId);if(!p)return;p.materiales[i].qty=Math.max(1,(p.materiales[i].qty||1)+d);save();renderMat();}
@@ -840,7 +956,196 @@ function addMal(){
 function togMal(i){const p=ged(activeId);if(!p)return;p.maleta[i].checked=!p.maleta[i].checked;save();renderMal();}
 function rmMal(i){const p=ged(activeId);if(!p)return;p.maleta.splice(i,1);save();renderMal();}
 
+// ARTE
+function togArteGlobal(){
+  const p=ged(activeId);if(!p)return;
+  p.arteOk=!p.arteOk;
+  save();renderMat();renderCompra();renderProd();
+}
+function togArteItem(i){
+  const p=ged(activeId);if(!p)return;
+  p.materiales[i].arteOk=!p.materiales[i].arteOk;
+  save();renderMat();renderCompra();renderProd();
+}
+
+// UPDATE MAT FIELD
+function updMat(i,field,val){
+  const p=ged(activeId);if(!p)return;
+  p.materiales[i][field]=val;
+  save();
+}
+
+// ─── LISTA DE COMPRA ───────────────────────────────────────────────────────
+let compraView='presup'; // 'presup' | 'art'
+function setCompraView(v){
+  compraView=v;
+  document.getElementById('ctog-presup').className='ctog'+(v==='presup'?' active':'');
+  document.getElementById('ctog-art').className='ctog'+(v==='art'?' active':'');
+  renderCompra();
+}
+
+function renderCompra(){
+  const p=ged(activeId);if(!p)return;
+  const mats=p.materiales||[];
+  // Resumen de imágenes a producir
+  const imgSummary=document.getElementById('compra-imgs-summary');
+  const arteItems=mats.filter(m=>!m.arteOk);
+  if(arteItems.length){
+    let imgHtml='<div class="compra-imgs"><div class="compra-imgs-title">🎨 Imágenes a producir ('+arteItems.length+')</div><div class="compra-imgs-list">';
+    arteItems.forEach((m,i)=>{
+      imgHtml+=`${i+1}. ${esc(m.nombre)}${m.pers?' — '+esc(m.pers):''}${m.medida?' ('+esc(m.medida)+')':''}<br>`;
+    });
+    imgHtml+='</div></div>';
+    imgSummary.innerHTML=imgHtml;
+  } else if(mats.length){
+    imgSummary.innerHTML='<div class="compra-imgs" style="background:var(--green-bg);"><div class="compra-imgs-title" style="color:var(--green);">✓ Todos los artes listos</div></div>';
+  } else {
+    imgSummary.innerHTML='';
+  }
+
+  const cont=document.getElementById('compra-list');
+  if(!mats.length){
+    cont.innerHTML='<div style="font-size:.82rem;color:var(--gray);padding:16px 0;text-align:center;">Sin materiales en este pedido.<br>Añádelos en la pestaña Materiales.</div>';
+    return;
+  }
+
+  if(compraView==='presup'){
+    // Una sola sección: el pedido actual
+    const totalQty=mats.reduce((s,m)=>s+(m.qty||1),0);
+    let html=`<div class="compra-section">
+      <div class="compra-section-hdr">
+        <span class="compra-section-title">${esc(p.cliente||'Sin nombre')}</span>
+        <span class="compra-section-meta">${totalQty} uds · ${mats.length} artículos</span>
+      </div>`;
+    mats.forEach(m=>{
+      html+=`<div class="compra-item">
+        <div class="compra-item-body">
+          <div class="compra-item-title">${esc(m.nombre)} × ${m.qty||1}</div>
+          ${m.proveedor?`<div class="compra-item-sub">📦 ${esc(m.proveedor)}</div>`:''}
+          <div class="compra-item-tags">
+            ${m.pers?`<span class="ctag ctag-pers">${esc(m.pers)}</span>`:''}
+            ${m.medida?`<span class="ctag ctag-medida">📐 ${esc(m.medida)}</span>`:''}
+            <span class="ctag ctag-qty">×${m.qty||1}</span>
+            <span class="arte-badge ${m.arteOk?'ok':'pend'}" style="font-size:.62rem;padding:2px 6px;">${m.arteOk?'✓ Arte':'🎨 Arte pend.'}</span>
+          </div>
+        </div>
+      </div>`;
+    });
+    html+='</div>';
+    cont.innerHTML=html;
+  } else {
+    // Agrupar por artículo
+    const byArt={};
+    mats.forEach(m=>{
+      const key=m.nombre||'Sin nombre';
+      if(!byArt[key])byArt[key]={items:[],total:0};
+      byArt[key].items.push(m);
+      byArt[key].total+=(m.qty||1);
+    });
+    let html='';
+    Object.entries(byArt).forEach(([artName,{items,total}])=>{
+      html+=`<div class="compra-section">
+        <div class="compra-section-hdr">
+          <span class="compra-section-title">${esc(artName)}</span>
+          <span class="compra-section-meta">Total: ${total} uds</span>
+        </div>`;
+      items.forEach(m=>{
+        html+=`<div class="compra-item">
+          <div class="compra-item-body">
+            <div class="compra-item-title">× ${m.qty||1}</div>
+            ${m.proveedor?`<div class="compra-item-sub">📦 ${esc(m.proveedor)}</div>`:''}
+            <div class="compra-item-tags">
+              ${m.pers?`<span class="ctag ctag-pers">${esc(m.pers)}</span>`:''}
+              ${m.medida?`<span class="ctag ctag-medida">📐 ${esc(m.medida)}</span>`:''}
+              <span class="arte-badge ${m.arteOk?'ok':'pend'}" style="font-size:.62rem;padding:2px 6px;">${m.arteOk?'✓ Arte':'🎨 Arte pend.'}</span>
+            </div>
+          </div>
+        </div>`;
+      });
+      html+='</div>';
+    });
+    cont.innerHTML=html;
+  }
+}
+
+// ─── TAB PRODUCCIÓN ────────────────────────────────────────────────────────
+function renderProd(){
+  const p=ged(activeId);if(!p)return;
+  const mats=p.materiales||[];
+  const chk=p.checklist||[];
+  const chkDone=chk.filter(x=>x.done).length;
+  const arteTotal=mats.length;
+  const arteDone=mats.filter(m=>m.arteOk).length;
+  const cont=document.getElementById('prod-summary');
+  if(!cont)return;
+  let html='';
+
+  // Estado general
+  const est=ESTADOS.find(e=>e.id===p.estado)||ESTADOS[0];
+  html+=`<div class="prod-info-block">
+    <h4>Resumen del pedido</h4>
+    <div class="prod-info-row"><span class="prod-info-label">Cliente</span><span class="prod-info-value">${esc(p.cliente||'—')}</span></div>
+    <div class="prod-info-row"><span class="prod-info-label">Artículo</span><span class="prod-info-value">${esc(p.articulo||'—')}</span></div>
+    <div class="prod-info-row"><span class="prod-info-label">Fecha entrega</span><span class="prod-info-value">${p.fecha?fmtF(p.fecha):'—'}</span></div>
+    <div class="prod-info-row"><span class="prod-info-label">Estado</span><span class="prod-info-value" style="color:${est.color}">${est.label}</span></div>
+    <div class="prod-info-row"><span class="prod-info-label">Checklist</span><span class="prod-info-value">${chkDone}/${chk.length} tareas</span></div>
+  </div>`;
+
+  // Artes
+  html+=`<div class="prod-info-block">
+    <h4>🎨 Artes (${arteDone}/${arteTotal} listos)</h4>`;
+  if(!mats.length){
+    html+='<div style="font-size:.8rem;color:var(--gray);">Sin materiales registrados.</div>';
+  } else {
+    mats.forEach((m,i)=>{
+      html+=`<div class="prod-info-row">
+        <span class="prod-info-label">${esc(m.nombre)} ×${m.qty||1}${m.medida?' | '+esc(m.medida):''}${m.pers?' | '+esc(m.pers):''}</span>
+        <button class="arte-badge ${m.arteOk?'ok':'pend'}" onclick="togArteItemProd(${i})" style="font-size:.62rem;">${m.arteOk?'✓ Listo':'Pendiente'}</button>
+      </div>`;
+    });
+  }
+  html+='</div>';
+
+  // Imágenes a producir
+  const pendArte=mats.filter(m=>!m.arteOk);
+  if(pendArte.length){
+    html+=`<div class="prod-info-block" style="background:var(--amber-bg);">
+      <h4 style="color:var(--amber);">📸 Imágenes a preparar (${pendArte.length})</h4>`;
+    pendArte.forEach((m,i)=>{
+      html+=`<div class="prod-info-row">
+        <span class="prod-info-label">${i+1}. ${esc(m.nombre)}</span>
+        <span class="prod-info-value" style="font-weight:400;">${m.pers||''}${m.medida?' · '+m.medida:''}</span>
+      </div>`;
+    });
+    html+='</div>';
+  } else if(mats.length){
+    html+=`<div class="prod-info-block" style="background:var(--green-bg);">
+      <h4 style="color:var(--green);">✅ Todos los artes preparados</h4>
+    </div>`;
+  }
+
+  // Notas
+  if(p.notas){
+    html+=`<div class="prod-info-block">
+      <h4>📝 Notas de producción</h4>
+      <div style="font-size:.82rem;line-height:1.5;color:var(--navy);">${esc(p.notas)}</div>
+    </div>`;
+  }
+
+  cont.innerHTML=html;
+}
+
+function togArteItemProd(i){
+  const p=ged(activeId);if(!p)return;
+  p.materiales[i].arteOk=!p.materiales[i].arteOk;
+  save();renderMat();renderProd();renderCompra();
+}
+
+// ─── FIX BUG DESKTOP: interceptar tabs para no bloquear navegación ──────────
+// (ya resuelto con CSS pero también forzamos display correcto en dTab)
+
 // SYNC
+
 async function syncSheets(){
   const url=SHEETS_URL;
   if(!url)return;
