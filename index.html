@@ -782,9 +782,11 @@ function selPresup(idx){
   document.getElementById('m-art').value            = p.pack||p.tipo||'';
   document.getElementById('m-email').value          = p.email||'';
   document.getElementById('m-tel').value            = p.tel||'';
-  // Normalizar fecha a YYYY-MM-DD (puede llegar como Date object o string)
+  // Normalizar fecha a YYYY-MM-DD en hora local (evita desfase UTC+2)
   const _fecha = p.fecha ? (p.fecha instanceof Date ? p.fecha : new Date(p.fecha)) : null;
-  const _fechaStr = _fecha && !isNaN(_fecha) ? _fecha.toISOString().split('T')[0] : '';
+  const _fechaStr = _fecha && !isNaN(_fecha)
+    ? `${_fecha.getFullYear()}-${String(_fecha.getMonth()+1).padStart(2,'0')}-${String(_fecha.getDate()).padStart(2,'0')}`
+    : '';
   document.getElementById('m-fecha').value          = _fechaStr;
   document.getElementById('m-invitados').value      = p.invitados||'';
   document.getElementById('m-importe').value        = p.importe||'';
