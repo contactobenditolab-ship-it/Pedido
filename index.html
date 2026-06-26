@@ -790,7 +790,7 @@ function openNewModal(){
   document.getElementById('modal-bd').classList.add('open');
   loadPresupuestos();
 }
-function closeModal(){document.getElementById('modal-bd').classList.remove('open');window._selectedPresup=null;}
+function closeModal(){document.getElementById('modal-bd').classList.remove('open');window._selectedPresup=null;_presups=[];}
 function selType(t){
   newType=t;
   document.querySelectorAll('.topt').forEach(o=>o.classList.toggle('sel',o.dataset.t===t));
